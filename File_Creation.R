@@ -1,0 +1,22 @@
+install.packages("haven")
+library(haven)
+albumin <- read_xpt("/Users/carolinemoy/stats571finalproject/Data/ALB_CR_L.xpt")
+high_blood_pressure <- read_xpt("/Users/carolinemoy/stats571finalproject/Data/BPQ_L.xpt")
+demographic <- read_xpt("/Users/carolinemoy/stats571finalproject/Data/DEMO_L.xpt")
+insecticide <- read_xpt("/Users/carolinemoy/stats571finalproject/Data/PUQMEC_L.xpt")
+ldl_chol <- read_xpt("/Users/carolinemoy/stats571finalproject/Data/TRIGLY_L.xpt")
+total_chol <- read_xpt("/Users/carolinemoy/stats571finalproject/Data/TCHOL_L.xpt")
+
+
+library(tidyverse)
+library(dplyr)
+
+complete_table <- demographic %>%
+  inner_join(albumin, by = "SEQN") %>%
+  inner_join(high_blood_pressure, by = "SEQN") %>%
+  inner_join(insecticide, by = "SEQN") %>%
+  inner_join(ldl_chol, by = "SEQN") %>%
+  inner_join(total_chol, by = "SEQN")
+
+
+write.csv(complete_table, file = "/Users/carolinemoy/stats571finalproject/Data/big_data.csv", row.names = FALSE)
