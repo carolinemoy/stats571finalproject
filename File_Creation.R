@@ -19,4 +19,4 @@ complete_table <- demographic %>%
   inner_join(total_chol, by = "SEQN")
 
 
-write.csv(complete_table, file = "/Users/carolinemoy/stats571finalproject/Data/big_data.csv", row.names = FALSE)
+write.csv(complete_table, file = "/Users/carolinemoy/stats571finalproj/Data/big_data.csv", row.names = FALSE)
