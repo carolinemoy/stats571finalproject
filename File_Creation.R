@@ -20,3 +20,9 @@ complete_table <- demographic %>%
 
 
 write.csv(complete_table, file = "/Users/carolinemoy/stats571finalproj/Data/big_data.csv", row.names = FALSE)
+
+total_chol_insecticide <- demographic %>%
+  inner_join(total_chol, by = "SEQN") %>%
+  inner_join(insecticide, by = "SEQN")
+
+write.csv(total_chol_insecticide, file = "/Users/carolinemoy/stats571finalproj/Data/total_chol_insect.csv", row.names = FALSE)
