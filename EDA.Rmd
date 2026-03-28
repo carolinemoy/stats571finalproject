@@ -10,6 +10,7 @@ library(haven)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
+library(reshape2)
 
 # TREATMENT - pesticide (PUBMEC_L) 
 
@@ -116,7 +117,7 @@ clean_df <- trt_response %>%
          systolic_avg, diastolic_avg, #response(s)
          pulse_avg, #covariates
          RIAGENDR, RIDAGEYR, RIDRETH1, RIDRETH3, DMQMILIZ, DMDBORN4, DMDYRUSR,
-         DMDEDUC2, DMDMARTZ, DMDHHSIZ, DMDHRGND, DMDHRAGZ, INDFMPIR, ALQ130, ALQ142, 
+         DMDEDUC2, DMDMARTZ, DMDHHSIZ, DMDHRGND, INDFMPIR, ALQ130, 
          DIQ010, LBXTC, DID040, INDFMMPC, PAD790Q, PAD790U, PAD810Q, PAD810U, PAD680,
          SLD012, SLD013, SMQ020, SMD650, WHD010, WHD020, WHD050
          ) %>%
@@ -134,7 +135,6 @@ clean_df <- trt_response %>%
     marital_status = DMDMARTZ,
     household_size = DMDHHSIZ,
     hh_reference_gender = DMDHRGND,
-    hh_reference_age = DMDHRAGZ,
     income_poverty_ratio = INDFMPIR,
     # ---------------- ALQ (Alcohol) ----------------
     alcohol_avg_drinks_per_day = ALQ130,
@@ -170,6 +170,8 @@ invalid <- c(7, 9, 77, 99, 777, 999, 7777, 9999, NA, "")
 #recode variables 
 clean_df <- clean_df %>%
   mutate(
+    pesticides = insecticide | weed_killers,
+    
     gender = recode(gender, `1` = "Male", `2` = "Female"),
     race_ethnicity = recode(race_ethnicity,
                             `1` = "Mexican American",
@@ -215,7 +217,7 @@ clean_df <- clean_df %>%
                             `99` = NA_character_),
     hh_reference_gender = recode(hh_reference_gender, `1` = "Male", `2` = "Female"),
     
-    alcohol_avg_drinks_per_day = if_else(alcohol_avg_drinks_per_day %in% c(77, 99), 
+    alcohol_avg_drinks_per_day = if_else(alcohol_avg_drinks_per_day %in% c(777, 999), 
                                          NA_real_, alcohol_avg_drinks_per_day),
     
     diabetes_diagnosed = recode(diabetes_diagnosed, `1` = 1, 
@@ -231,21 +233,25 @@ clean_df <- clean_df %>%
                                       `7` = NA_character_, `9` = NA_character_),
     
    
-    mod_activity_freq = ifelse(mod_activity_freq %in% invalid, NA_real_, mod_activity_freq), 
     mod_activity_unit = ifelse(mod_activity_unit %in% invalid, NA_real_,
                                recode(mod_activity_unit, `D` = 7, `W` = 1, 
                                       `M` = (1/4.345), `Y` = (1 / 52.143), .default = NA_real_)),
-    mod_activity_per_week = ifelse(!is.na(mod_activity_freq), 
-                                    mod_activity_freq * mod_activity_unit, 
-                                    NA_real_),
+    mod_activity_per_week = ifelse(mod_activity_freq %in% c(NA, 7777, 9999), 
+                                    NA_real_,
+                                    mod_activity_freq * mod_activity_unit),
     
-    vig_activity_freq = ifelse(vig_activity_freq %in% invalid, NA_real_, vig_activity_freq), 
+    
     vig_activity_unit = ifelse(vig_activity_unit %in% invalid, NA_real_,
                                recode(vig_activity_unit, `D` = 7, `W` = 1, 
                                       `M` = (1/4.345), `Y` = (1 / 52.143), .default = NA_real_)),
-    vig_activity_per_week = ifelse(!is.na(vig_activity_freq), 
-                                   vig_activity_freq * vig_activity_unit, 
-                                   NA_real_),
+    
+    vig_activity_per_week = ifelse(vig_activity_freq %in% c(NA, 7777, 9999), 
+                                   NA_real_,
+                                   vig_activity_freq * vig_activity_unit),
+    
+    
+    sedentary_minutes = if_else(sedentary_minutes %in% c(7777, 9999), 
+                                         NA_real_, sedentary_minutes),
     
     smoked_100_cigs = recode(smoked_100_cigs, `1` = 1, `2` = 0, `7` = NA_real_, `9` = NA_real_),
     cig_per_day = if_else(cig_per_day %in% c(777, 999), NA_real_, cig_per_day),
@@ -266,6 +272,74 @@ write.csv(clean_df, "Data/clean_df.csv")
 ## EDA
 
 ```{r}
+par(mfrow = c(1, 2))
+
+# Systolic
+hist(clean_df$systolic_avg,
+     main = "Distribution of Systolic Blood Pressure",
+     xlab = "Systolic BP (mmHg)",
+     col = "skyblue",
+     border = "white",
+     breaks = 20)
+
+# Diastolic
+hist(clean_df$diastolic_avg,
+     main = "Distribution of Diastolic Blood Pressure",
+     xlab = "Diastolic BP (mmHg)",
+     col = "salmon",
+     border = "white",
+     breaks = 20)
+```
+
+```{r}
+df_counts <- clean_df %>%
+  mutate(group = case_when(
+    insecticide == 1 & weed_killers == 1 ~ "insecticides and weed killers",
+    insecticide == 1 & weed_killers == 0 ~ "insecticides",
+    insecticide == 0 & weed_killers == 1 ~ "weed killers",
+    TRUE ~ "neither"
+  )) %>%
+  count(group)
+
+ggplot(df_counts, aes(x = "", y = n, fill = group)) +
+  geom_bar(stat = "identity") +
+  coord_polar(theta = "y") +  
+  labs(y = "Count", x = "") +
+  theme_minimal()
+```
+
+```{r}
+na_counts <- sapply(clean_df, function(x) sum(is.na(x)))
+na_counts
+```
+```{r}
+summary(clean_df)
+
 
 ```
 
+```{r}
+hist(clean_df$mod_activity_per_week)
+```
+
+```{r}
+library(devtools)
+install_github("haleyjeppson/ggmosaic")
+library(ggmosaic)
+mosiac = (clean_df %>%
+    select(c(gender, pesticides))) %>%
+    drop_na(gender, pesticides)
+
+ggplot(data = mosiac) + geom_mosaic(aes(x = product(gender, pesticides), fill = gender))
+
+```
+
+```{r}
+wls_2_rand = clean_df %>%
+    mutate(pesticides = sample(pesticides))
+wls_2num_g = melt(wls_2_rand %>%
+    select(c(pesticides, age_years, income_poverty_ratio, 
+             alcohol_avg_drinks_per_day, tot_cholesterol)), id.var = "pesticides")
+ggplot(data = wls_2num_g, aes(x = variable, y = value)) + geom_boxplot(aes(fill = pesticides)) +
+    facet_wrap(~variable, scales = "free")
+```
