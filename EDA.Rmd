@@ -5,49 +5,39 @@ date: "2026-03-24"
 ---
 
 ```{r}
-#combine covariate, treatment, and response data 
-
-# TREATMENT - pesticide - PUBMEC_L -> PUB100
-# COVARIATES - ..., alcohol use (ALQ_L), demographics (DEMO_L), diabetes (DIQ_L), 
-# income (INQ_L), physical activity (PAQY_L, PAQ_L), sleep (SLQ), smoking (SMQ),
-# weight (WHQ_L) 
-# RESPONSE - blood pressure - (BPXO_L) or high blood pressure (BPQ_L) 
-```
-
-
-
-```{r}
 library(tidyverse)
 library(haven)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
 
-insecticide <- read_xpt("Data/PUQMEC_L.xpt")
-high_blood_pressure <- read_xpt("Data/BPQ_L.xpt")
+# TREATMENT - pesticide (PUBMEC_L) 
+
+# COVARIATES - alcohol use (ALQ_L), demographics (DEMO_L), diabetes (DIQ_L), 
+# cholesterol (TCHOL_L),  income (INQ_L), physical activity (PAQ_L), 
+# sleep (SLQ), smoking (SMQ), weight (WHQ_L) 
+
+# RESPONSE - blood pressure (BPXO_L) 
+```
+
+## treatment / response
+
+```{r}
+pesticide <- read_xpt("Data/PUQMEC_L.xpt")
 blood_pressure <- read_xpt("Data/BPXO_L.xpt")
 ```
 
-## first identify helpful treatment / response variables 
-
 ```{r}
-data <- high_blood_pressure %>%
-  full_join(blood_pressure, by = "SEQN") %>%
-  right_join(insecticide, by = "SEQN") 
+invalid <- c(7, 9, 77, 99, 777, 999, 7777, 9999, NA, "") 
+pesticide$PUQ100 <- ifelse(pesticide$PUQ100 %in% invalid, NA, pesticide$PUQ100)
+pesticide$PUQ110 <- ifelse(pesticide$PUQ110 %in% invalid, NA, pesticide$PUQ110)
 
-
-```
-
-```{r}
-#rename 
-data_clean <- data %>%
-  rename(
-    # ID
-    respondent_id = SEQN,
+data <- pesticide %>%
+  inner_join(blood_pressure, by = "SEQN") %>%
+  rename (
+    insecticide = PUQ100, 
+    weed_killers = PUQ110,
     
-    # Blood pressure measurement setup
-    bp_arm = BPAOARM,
-    bp_cuff_size = BPAOCSZ,
     
     # Systolic readings
     systolic_1 = BPXOSY1,
@@ -62,247 +52,218 @@ data_clean <- data %>%
     # Pulse readings
     pulse_1 = BPXOPLS1,
     pulse_2 = BPXOPLS2,
-    pulse_3 = BPXOPLS3,
-    
-    # Blood pressure questionnaire
-    told_high_bp = BPQ020,
-    high_bp_multiple_times = BPQ030,
-    bp_medication = BPQ150,
-    
-    # Cholesterol
-    told_high_cholesterol = BPQ080,
-    cholesterol_medication = BPQ101D,
-    
-    # Environmental exposure
-    insecticide_home_use = PUQ100,
-    weed_killer_use = PUQ110
-  )
-```
-
-```{r}
-table(data_clean$insecticide_home_use, useNA = "always")
-#table(data_clean$weed_killer_use, useNA = "always") #much less
-
-```
-
-```{r}
-potential_responses <- c("systolic_1", "systolic_2", "systolic_3", "diastolic_1",
-                        "diastolic_2", "diastolic_3", "told_high_bp", 
-                        "high_bp_multiple_times")
-
-#graph 
-
-#table(data_clean$systolic_1, useNA = "always")
-#table(data_clean$told_high_bp, useNA = "always")
-table(data_clean$high_bp_multiple_times, useNA = "always")
-```
-
-
-```{r}
-missing_counts <- data_clean %>%
-  summarise(across(all_of(potential_responses), ~ sum(is.na(.)))) %>%
-  pivot_longer(cols = everything(),
-               names_to = "variable",
-               values_to = "missing_count")
-
-# Plot
-ggplot(missing_counts, aes(x = variable, y = missing_count)) +
-  geom_col(fill = "steelblue") +
-  labs(
-    title = "Number of Missing Values by Variable",
-    x = "Variable",
-    y = "Count of Missing Values"
-  ) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-```
-
-
-
-
-```{r}
-#count of treatment and control using non-missing told_high_bp vs diastolic_1
-
-data_high_bp <- data_clean %>%
-  drop_na(told_high_bp)
+    pulse_3 = BPXOPLS3
+  ) %>%
   
+  mutate(insecticide = recode(insecticide,
+                            `1` = 1,
+                            `2` = 0),
+         weed_killers = recode(weed_killers,
+                            `1` = 1,
+                            `2` = 0))
+```
 
 
-table(data_high_bp$insecticide_home_use, useNA = "always")
-
+```{r}
+table(data$insecticide, useNA = "always")
+table(data$weed_killers, useNA = "always")
 ```
 
 ```{r}
-#count of treatment and control using non-missing told_high_bp vs diastolic_1
-
-data_high_bp <- data_clean %>%
-  drop_na(systolic_1)
+trt_response <- data %>%
+  mutate(
+    systolic_avg = rowMeans(select(., systolic_1, systolic_2, systolic_3), na.rm = TRUE),
+    diastolic_avg = rowMeans(select(., diastolic_1, diastolic_2, diastolic_3), na.rm = TRUE),
+    pulse_avg = rowMeans(select(., pulse_1, pulse_2, pulse_3), na.rm = TRUE)) %>%
   
-
-
-table(data_high_bp$insecticide_home_use, useNA = "always")
-
+  select(SEQN, #unique id
+         insecticide, weed_killers, #treatment(s) 
+         systolic_avg, diastolic_avg, #response(s)
+         pulse_avg) #covariate
 ```
 
 
-```{r}
-#leaning towards:
-#treatment: insecticide_home_use
-#response: told_high_bp
-#approx 1:12 trt:control ratio 
-```
 
-## construct final dataset:
+## add covariates
 
 ```{r}
 DEMO_L <- read_xpt("Data/DEMO_L.xpt")
 ALQ_L <- read_xpt("Data/ALQ_L.xpt")
 DIQ_L <- read_xpt("Data/DIQ_L.xpt")
+TCHOL_L <- read_xpt("Data/TCHOL_L.xpt")
 INQ_L <- read_xpt("Data/INQ_L.xpt")
 PAQ_L <- read_xpt("Data/PAQ_L.xpt")
-PAQY_L <- read_xpt("Data/PAQY_L.xpt")
 SLQ_L <- read_xpt("Data/SLQ_L.xpt")
 SMQ_L <- read_xpt("Data/SMQ_L.xpt")
 WHQ_L <- read_xpt("Data/WHQ_L.xpt")
 ```
 
 ```{r}
-final_df <- insecticide %>%
-  inner_join(high_blood_pressure, by = "SEQN")  %>%
-  select(SEQN, PUQ100, BPQ020, BPQ080) %>% #told high bp, use insecticides, cholesterol  
-  drop_na(PUQ100, BPQ020)  %>% #drop rows where the treatment, response is NA
-  rename(
-    # ID, treatment, control, cholesterol 
-    respondent_id = SEQN,
-    told_high_bp = BPQ020,
-    told_high_cholesterol = BPQ080,
-    insecticide_home_use = PUQ100
-  )
-```
-
-```{r}
-final_df <- final_df %>%
+clean_df <- trt_response %>%
   
   #join other covariates 
-  left_join(DEMO_L, by = "respondent_id") %>% #demographics
-  left_join(ALQ_L, by = "respondent_id") %>% #alcohol
-  left_join(DIQ_L, by = "respondent_id") %>% #diabetes
-  left_join(INQ_L, by = "respondent_id") %>% #income
-  left_join(PAQY_L, by = "respondent_id") %>% #physical activity
-  left_join(PAQ_L, by = "respondent_id") %>% #physical activity 
-  left_join(SLQ_L, by = "respondent_id") %>% #sleep disorders 
-  left_join(SMQ_L, by = "respondent_id") %>% #smoking
-  left_join(WHQ_L, by = "respondent_id") %>% #weight
-  
+  left_join(DEMO_L, by = "SEQN") %>% #demographics
+  left_join(ALQ_L, by = "SEQN") %>% #alcohol
+  left_join(DIQ_L, by = "SEQN") %>% #diabetes
+  left_join(TCHOL_L, by = "SEQN") %>% #cholesterol 
+  left_join(INQ_L, by = "SEQN") %>% #income
+  left_join(PAQ_L, by = "SEQN") %>% #physical activity 
+  left_join(SLQ_L, by = "SEQN") %>% #sleep disorders 
+  left_join(SMQ_L, by = "SEQN") %>% #smoking
+  left_join(WHQ_L, by = "SEQN") %>% #weight
+         
+  select(insecticide, weed_killers, #treatment(s)
+         systolic_avg, diastolic_avg, #response(s)
+         pulse_avg, #covariates
+         RIAGENDR, RIDAGEYR, RIDRETH1, RIDRETH3, DMQMILIZ, DMDBORN4, DMDYRUSR,
+         DMDEDUC2, DMDMARTZ, DMDHHSIZ, DMDHRGND, DMDHRAGZ, INDFMPIR, ALQ130, ALQ142, 
+         DIQ010, LBXTC, DID040, INDFMMPC, PAD790Q, PAD790U, PAD810Q, PAD810U, PAD680,
+         SLD012, SLD013, SMQ020, SMD650, WHD010, WHD020, WHD050
+         ) %>%
+
   rename(
     # ---------------- DEMO ----------------
-    survey_cycle = SDDSRVYR,
-    interview_exam_status = RIDSTATR,
     gender = RIAGENDR,
     age_years = RIDAGEYR,
-    age_months_screening = RIDAGEMN,
     race_ethnicity = RIDRETH1,
     race_ethnicity_detailed = RIDRETH3,
-    exam_period_6mo = RIDEXMON,
-    age_months_exam = RIDEXAGM,
     active_duty_military = DMQMILIZ,
     country_of_birth = DMDBORN4,
     years_in_us = DMDYRUSR,
     education_level = DMDEDUC2,
     marital_status = DMDMARTZ,
-    pregnancy_status = RIDEXPRG,
     household_size = DMDHHSIZ,
     hh_reference_gender = DMDHRGND,
     hh_reference_age = DMDHRAGZ,
-    hh_reference_education = DMDHREDZ,
-    hh_reference_marital_status = DMDHRMAZ,
-    hh_spouse_education = DMDHSEDZ,
-    interview_weight_2yr = WTINT2YR,
-    exam_weight_2yr = WTMEC2YR,
-    pseudo_stratum = SDMVSTRA,
-    pseudo_psu = SDMVPSU,
     income_poverty_ratio = INDFMPIR,
-    
     # ---------------- ALQ (Alcohol) ----------------
-    ever_alcohol = ALQ111,
-    alcohol_freq_12mo = ALQ121,
     alcohol_avg_drinks_per_day = ALQ130,
-    binge_days_12mo = ALQ142,
-    binge_2hr_episodes_12mo = ALQ270,
-    heavy_drinking_days_12mo = ALQ280,
-    ever_daily_binge = ALQ151,
-    binge_days_past_month = ALQ170,
-    
     # ---------------- DIQ (Diabetes) ----------------
     diabetes_diagnosed = DIQ010,
-    age_diabetes_diagnosis = DID040,
-    prediabetes = DIQ160,
-    glucose_test_3yr = DIQ180,
-    insulin_now = DIQ050,
-    insulin_duration = DID060,
-    insulin_duration_unit = DIQ060U,
-    diabetes_pills = DIQ070,
-    
+    age_diabetes_diagnosed = DID040,
+    # ---------------- TCHOL (Cholesterol) ----------------
+    tot_cholesterol = LBXTC,  
     # ---------------- INQ (Income) ----------------
-    monthly_poverty_index = INDFMMPI,
     monthly_poverty_category = INDFMMPC,
-    savings_over_20k = INQ300,
-    total_family_savings = IND310,
-    
     # ---------------- PAQ (Physical Activity) ----------------
     mod_activity_freq = PAD790Q,
     mod_activity_unit = PAD790U,
-    mod_activity_minutes = PAD800,
     vig_activity_freq = PAD810Q,
     vig_activity_unit = PAD810U,
-    vig_activity_minutes = PAD820,
     sedentary_minutes = PAD680,
-    
-    # ---------------- PAQY (Youth Activity) ----------------
-    active_days_60min = PAQ706,
-    screen_time_hours = PAQ711,
-    
     # ---------------- SLQ (Sleep) ----------------
-    sleep_time_weekday = SLQ300,
-    wake_time_weekday = SLQ310,
     sleep_hours_weekday = SLD012,
-    sleep_time_weekend = SLQ320,
-    wake_time_weekend = SLQ330,
     sleep_hours_weekend = SLD013,
-    
     # ---------------- SMQ (Smoking) ----------------
     smoked_100_cigs = SMQ020,
-    current_smoker = SMQ040,
-    smoking_days_30d = SMD641,
-    cigarettes_per_day = SMD650,
-    menthol_cigarette = SMD100MN,
-    lifetime_cigarettes = SMQ621,
-    age_first_cigarette = SMD630,
-    smoking_questionnaire_mode = SMAQUEX2,
-    
+    cig_per_day = SMD650,
     # ---------------- WHQ (Weight/Height) ----------------
     height_inches = WHD010,
     weight_pounds = WHD020,
-    weight_1yr_ago = WHD050,
-    tried_lose_weight = WHQ070
-  ) %>%
+    weight_1yr_ago = WHD050
+    ) 
+```
 
-  #select relevant variables 
-  select(respondent_id, told_high_bp, insecticide_home_use, told_high_cholesterol 
-         ) #%>%
+```{r}
+invalid <- c(7, 9, 77, 99, 777, 999, 7777, 9999, NA, "") 
 
-
-  #recode relevant variables
+#recode variables 
+clean_df <- clean_df %>%
+  mutate(
+    gender = recode(gender, `1` = "Male", `2` = "Female"),
+    race_ethnicity = recode(race_ethnicity,
+                            `1` = "Mexican American",
+                            `2` = "Other Hispanic",
+                            `3` = "Non-Hispanic White",
+                            `4` = "Non-Hispanic Black",
+                            `5` = "Other Race"),
+    race_ethnicity_detailed = recode(race_ethnicity_detailed,
+                                     `1` = "Mexican American",
+                                     `2` = "Other Hispanic",
+                                     `3` = "Non-Hispanic White",
+                                     `4` = "Non-Hispanic Black",
+                                     `6` = "Non-Hispanic Asian",
+                                     `7` = "Other Race"),
+    active_duty_military = recode(active_duty_military, `1` = 1, `2` = 0, `7` = NA_real_),
     
+    born_in_US = recode(country_of_birth, `1` = 1, `2` = 0, `77` = NA_real_,
+                              `99` = NA_real_),
+    
+    years_in_us = recode(years_in_us,
+                             `1` = "<1 year",
+                             `2` = "1-4 years",
+                             `3` = "5-9 years",
+                             `4` = "10-14 years",
+                             `5` = "15-19 years",
+                             `6` = "20+ years",
+                             `77` = NA_character_,
+                             `99` = NA_character_),
+    
+    
+    education_level = recode(education_level,
+                             `1` = "<9th grade",
+                             `2` = "9-11th grade",
+                             `3` = "High school/GED",
+                             `4` = "Some college/AA",
+                             `5` = "College graduate or above",
+                             `9` =  NA_character_), 
+    marital_status = recode(marital_status,
+                            `1` = "Married",
+                            `2` = "Widowed",
+                            `3` = "Divorced",
+                            `77` = NA_character_,
+                            `99` = NA_character_),
+    hh_reference_gender = recode(hh_reference_gender, `1` = "Male", `2` = "Female"),
+    
+    alcohol_avg_drinks_per_day = if_else(alcohol_avg_drinks_per_day %in% c(77, 99), 
+                                         NA_real_, alcohol_avg_drinks_per_day),
+    
+    diabetes_diagnosed = recode(diabetes_diagnosed, `1` = 1, 
+                                                    `2` = 0, 
+                                                    `3` = NA_real_, `7` = NA_real_, `9` = NA_real_),
+    
+    age_diabetes_diagnosed = ifelse(age_diabetes_diagnosed %in% invalid, NA, age_diabetes_diagnosed),
+    
+    monthly_poverty_category = recode(monthly_poverty_category, 
+                                      `1` = "Low",
+                                      `2` = "Medium",
+                                      `3` = "High",
+                                      `7` = NA_character_, `9` = NA_character_),
+    
+   
+    mod_activity_freq = ifelse(mod_activity_freq %in% invalid, NA_real_, mod_activity_freq), 
+    mod_activity_unit = ifelse(mod_activity_unit %in% invalid, NA_real_,
+                               recode(mod_activity_unit, `D` = 7, `W` = 1, 
+                                      `M` = (1/4.345), `Y` = (1 / 52.143), .default = NA_real_)),
+    mod_activity_per_week = ifelse(!is.na(mod_activity_freq), 
+                                    mod_activity_freq * mod_activity_unit, 
+                                    NA_real_),
+    
+    vig_activity_freq = ifelse(vig_activity_freq %in% invalid, NA_real_, vig_activity_freq), 
+    vig_activity_unit = ifelse(vig_activity_unit %in% invalid, NA_real_,
+                               recode(vig_activity_unit, `D` = 7, `W` = 1, 
+                                      `M` = (1/4.345), `Y` = (1 / 52.143), .default = NA_real_)),
+    vig_activity_per_week = ifelse(!is.na(vig_activity_freq), 
+                                   vig_activity_freq * vig_activity_unit, 
+                                   NA_real_),
+    
+    smoked_100_cigs = recode(smoked_100_cigs, `1` = 1, `2` = 0, `7` = NA_real_, `9` = NA_real_),
+    cig_per_day = if_else(cig_per_day %in% c(777, 999), NA_real_, cig_per_day),
+    
+    height_inches = if_else(height_inches %in% c(7777, 9999), NA_real_, height_inches),
+    weight_pounds = if_else(weight_pounds %in% c(7777, 9999), NA_real_, weight_pounds),
+    weight_1yr_ago = if_else(weight_1yr_ago %in% c(7777, 9999), NA_real_, weight_1yr_ago))  %>%
 
-
-
-
+  select(-country_of_birth, -mod_activity_freq, -mod_activity_unit, 
+         -vig_activity_freq, -vig_activity_unit)
 
 ```
 
-## final_df
+```{r}
+write.csv(clean_df, "Data/clean_df.csv")
+```
+
+## EDA
 
 ```{r}
 
