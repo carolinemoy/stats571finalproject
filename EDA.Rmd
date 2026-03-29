@@ -327,19 +327,19 @@ library(devtools)
 install_github("haleyjeppson/ggmosaic")
 library(ggmosaic)
 mosiac = (clean_df %>%
-    select(c(gender, pesticides))) %>%
-    drop_na(gender, pesticides)
+    select(c(gender, insecticide))) %>%
+    drop_na(gender, insecticide)
 
-ggplot(data = mosiac) + geom_mosaic(aes(x = product(gender, pesticides), fill = gender))
+ggplot(data = mosiac) + geom_mosaic(aes(x = product(insecticide), fill = gender))
 
 ```
 
 ```{r}
 wls_2_rand = clean_df %>%
-    mutate(pesticides = sample(pesticides))
+    mutate(insecticide = sample(insecticide))
 wls_2num_g = melt(wls_2_rand %>%
-    select(c(pesticides, age_years, income_poverty_ratio, 
-             alcohol_avg_drinks_per_day, tot_cholesterol)), id.var = "pesticides")
-ggplot(data = wls_2num_g, aes(x = variable, y = value)) + geom_boxplot(aes(fill = pesticides)) +
+    select(c(insecticide, age_years, income_poverty_ratio, 
+             alcohol_avg_drinks_per_day, tot_cholesterol)), id.var = "insecticides")
+ggplot(data = wls_2num_g, aes(x = variable, y = value)) + geom_boxplot(aes(fill = insecticide)) +
     facet_wrap(~variable, scales = "free")
 ```
