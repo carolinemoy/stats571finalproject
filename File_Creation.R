@@ -26,3 +26,15 @@ total_chol_insecticide <- demographic %>%
   inner_join(insecticide, by = "SEQN")
 
 write.csv(total_chol_insecticide, file = "/Users/carolinemoy/stats571finalproj/Data/total_chol_insect.csv", row.names = FALSE)
+
+
+clean_df <- read_csv("/Users/carolinemoy/stats571finalproj/Data/clean_df.csv")
+
+clean_df
+
+# Making the other outcome columns -- raw difference and mean sys and dia pressure
+clean_df <- clean_df %>% 
+  mutate(raw_difference = systolic_avg - diastolic_avg, 
+         mean_bp = diastolic_avg + (1/3) * (systolic_avg - diastolic_avg))
+
+write.csv(clean_df, file = "/Users/carolinemoy/stats571finalproj/Data/clean_df.csv", row.names = FALSE)
