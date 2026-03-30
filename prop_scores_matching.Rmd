@@ -10,9 +10,9 @@ library(dplyr)
 ```
 
 ```{r}
-clean_df <- read_csv("/Users/carolinemoy/stats571finalproj/Data/clean_df.csv")
+clean_df <- read_csv("Data/clean_df.csv")
 ```
-
+#eda 
 ```{r}
 clean_df
 ```
@@ -75,6 +75,10 @@ plot(clean_df$sleep_hours_weekday, clean_df$sleep_hours_weekend)
 ```
 
 ```{r}
+plot(clean_df$mod_activity_per_week, clean_df$sedentary_minutes)
+```
+
+```{r}
 na_prevalance <- clean_df %>% 
   is.na() %>% 
   colMeans() 
@@ -86,6 +90,8 @@ na_prevalance > 0.5
 clean_df = clean_df %>% 
   mutate(subject_ID = `...1`)
 ```
+
+#model
 
 ```{r}
 #imputation??
@@ -137,17 +143,15 @@ prop_score_mod <- glm(insecticide ~ pulse_avg +
       smoked_100_cigs + 
       height_inches + 
       weight_pounds + 
-      mod_activity_per_week, data = clean_df, 
+      mod_activity_per_week, data = clean_df, family = binomial,
       x = TRUE, y = TRUE)
 ```
 
 ```{r}
 summary(prop_score_mod)
 ```
-```{r}
-Z = prop_score_mod$y
-logitps = predict(prop_score_mod)
-```
+
+
 
 ```{r}
 sum(complete.cases(clean_df[, c(
@@ -178,23 +182,23 @@ length(complete_cases)
 ```
 
 
-
 ```{r}
 complete_cases_df <- clean_df[complete_cases, ]
 
 table(complete_cases_df$insecticide)
 ```
 
-```{r}
-plot(clean_df$mod_activity_per_week, clean_df$sedentary_minutes)
-```
 
 ```{r}
+Z = prop_score_mod$y
+logitps = predict(prop_score_mod)
 length(logitps)
 ```
 
+
 ```{r}
-clean_df
+#clean_df
+#logitps
 ```
 
 ```{r}
@@ -202,6 +206,71 @@ plot(density(logitps[Z]), col = "red", xlim = c(0,1) , main = "Density Estimates
 lines(density(logitps[!Z]))
 legend("topleft", c("Treated", "Control"), col = c("red", "black"), lty = c(1,1))
 ```
+
+
+```{r}
+covariates <- c(
+    "pulse_avg",
+    "gender",
+    "age_years",
+    "race_ethnicity_detailed",
+    "active_duty_military",
+    "education_level",
+    "marital_status",
+    "household_size",
+    "income_poverty_ratio",
+    "diabetes_diagnosed",
+    "sedentary_minutes",
+    "sleep_hours_weekday",
+    "smoked_100_cigs",
+    "height_inches",
+    "weight_pounds",
+    "mod_activity_per_week"
+  )
+  
+treated <- clean_df[clean_df$insecticide == TRUE, c(covariates, "insecticide")]
+control <- clean_df[clean_df$insecticide == FALSE, c(covariates, "insecticide")]
+```
+
+```{r}
+treated_prop_scores <- predict(prop_score_mod, treated, type = "response")
+hist(treated_prop_scores)
+
+control_prop_scores <- predict(prop_score_mod, control, type = "response")
+hist(control_prop_scores)
+```
+
+
+```{r}
+#regular prop score model, impute predicted prop scores for dist mat: 
+
+treated_imp <- imputed_df[imputed_df$insecticide == TRUE, c(covariates, "insecticide")]
+control_imp <- imputed_df[imputed_df$insecticide == FALSE, c(covariates, "insecticide")]
+```
+
+```{r}
+treated_prop_scores_imp <- predict(prop_score_mod, treated_imp, type = "response")
+hist(treated_prop_scores_imp)
+
+control_prop_scores_imp <- predict(prop_score_mod, control_imp, type = "response")
+hist(control_prop_scores_imp)
+```
+
+```{r}
+range(treated_prop_scores_imp)
+range(control_prop_scores_imp)
+```
+
+```{r}
+# report the fraction of treated and control individuals that
+# have an estimated propensity score below 0.0001
+
+cat("Treated Proportion with Propensity Scores < 0.0001", mean(treated_prop_scores_imp < 0.0001), "\n")
+cat("Control Proportion with Propensity Scores < 0.0001",  mean(control_prop_scores_imp < 0.0001))
+```
+
+
+#distmat
 
 ```{r}
 distmat.logitps = outer(logitps[Z == 1],logitps[Z==0],"-")
@@ -211,19 +280,6 @@ rownames(distmat.logitps)= complete_cases_df$subject_ID[Z == 1]
 colnames(distmat.logitps)= complete_cases_df$subject_ID[Z == 0]
 ```
 
-
-```{r}
-
-```
-
-
-
-
-
-
-```{r}
-length(logitps)
-```
 
 ```{r}
 clean_df %>% 
@@ -248,7 +304,7 @@ prop_score_mod_imputed <- glm(insecticide ~ pulse_avg +
       smoked_100_cigs + 
       height_inches + 
       weight_pounds + 
-      mod_activity_per_week, data = imputed_df, 
+      mod_activity_per_week, data = imputed_df, family = "binomial",
       x = TRUE, y = TRUE)
 ```
 
