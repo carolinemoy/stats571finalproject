@@ -1,0 +1,225 @@
+---
+title: "prop_scores_matching"
+output: pdf_document
+date: "2026-03-30"
+---
+
+```{r}
+library(tidyverse)
+library(dplyr)
+```
+
+```{r}
+clean_df <- read_csv("/Users/carolinemoy/stats571finalproj/Data/clean_df.csv")
+```
+
+```{r}
+clean_df
+```
+
+```{r}
+clean_df %>% 
+  group_by(smoked_100_cigs) %>% 
+  summarise(n = n())
+
+clean_df %>% 
+  group_by(born_in_US) %>% 
+  summarise(n = n())
+
+clean_df %>% 
+  group_by(mod_activity_per_week) %>% 
+  summarise(n = n())
+
+clean_df %>% 
+  group_by(vig_activity_per_week) %>% 
+  summarise(n = n())
+
+clean_df %>% 
+  group_by(cig_per_day) %>% 
+  summarise(n = n())
+```
+
+```{r}
+table(clean_df$race_ethnicity_detailed)
+```
+```{r}
+clean_df %>% 
+  group_by(active_duty_military) %>% 
+  summarise(n = n())
+
+table(clean_df$active_duty_military)
+
+clean_df %>% 
+  group_by(years_in_us) %>% 
+  summarise(n = n())
+```
+
+```{r}
+table(clean_df$years_in_us)
+```
+
+```{r}
+clean_df %>% 
+  group_by(hh_reference_gender) %>% 
+  summarise(n = n())
+```
+
+```{r}
+clean_df %>% 
+  group_by(alcohol_avg_drinks_per_day) %>% 
+  summarise(n = n())
+```
+
+```{r}
+plot(clean_df$sleep_hours_weekday, clean_df$sleep_hours_weekend)
+```
+
+```{r}
+na_prevalance <- clean_df %>% 
+  is.na() %>% 
+  colMeans() 
+
+na_prevalance > 0.5
+```
+
+```{r}
+#imputation??
+# Function to calculate mode
+get_mode <- function(x) {
+  ux <- unique(x[!is.na(x)])
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+# Copy your dataset (so you don't overwrite original)
+imputed_df <- clean_df
+
+# Loop through each column
+for (col in names(imputed_df)) {
+  
+  # If numeric → mean imputation
+  if (is.numeric(imputed_df[[col]])) {
+    mean_val <- mean(imputed_df[[col]], na.rm = TRUE)
+    imputed_df[[col]][is.na(imputed_df[[col]])] <- mean_val
+  }
+  
+  # If factor or character → mode imputation
+  else if (is.factor(imputed_df[[col]]) || is.character(imputed_df[[col]])) {
+    mode_val <- get_mode(imputed_df[[col]])
+    imputed_df[[col]][is.na(imputed_df[[col]])] <- mode_val
+    
+    # Optional: convert character → factor (helps with glm)
+    if (is.character(imputed_df[[col]])) {
+      imputed_df[[col]] <- as.factor(imputed_df[[col]])
+    }
+  }
+}
+```
+
+```{r}
+# propensity score model 
+prop_score_mod <- glm(insecticide ~ pulse_avg + 
+      gender + 
+      age_years + 
+      race_ethnicity_detailed + 
+      active_duty_military + 
+      education_level + 
+      marital_status + 
+      household_size + 
+      income_poverty_ratio + 
+      diabetes_diagnosed + 
+      sedentary_minutes + 
+      sleep_hours_weekday + 
+      smoked_100_cigs + 
+      height_inches + 
+      weight_pounds + 
+      mod_activity_per_week, data = clean_df, 
+      x = TRUE, y = TRUE)
+```
+
+```{r}
+summary(prop_score_mod)
+```
+```{r}
+Z = prop_score_mod$y
+logitps = predict(prop_score_mod)
+```
+
+```{r}
+sum(complete.cases(clean_df[, c(
+  "insecticide", "pulse_avg", "gender", "age_years",
+  "race_ethnicity_detailed", "active_duty_military",
+  "education_level", "marital_status", "household_size",
+  "income_poverty_ratio", "diabetes_diagnosed",
+  "sedentary_minutes", "sleep_hours_weekday",
+  "smoked_100_cigs", "height_inches", "weight_pounds",
+  "mod_activity_per_week"
+)]))
+```
+
+```{r}
+length(logitps)
+```
+
+```{r}
+clean_df
+```
+
+```{r}
+plot(density(logitps[Z]), col = "red", xlim = c(0,1) , main = "Density Estimates of Propensity Scores")
+lines(density(logitps[!Z]))
+legend("topleft", c("Treated", "Control"), col = c("red", "black"), lty = c(1,1))
+```
+
+```{r}
+distmat.logitps = outer(logitps[Z == 1],logitps[Z==0],"-")
+distmat.logitps = abs(distmat.logitps)
+
+rownames(distmat.logitps)= rownames(clean_df)[Z == 1]
+colnames(distmat.logitps)= rownames(clean_df)[Z == 0]
+```
+
+```{r}
+length(logitps)
+```
+
+```{r}
+clean_df %>% 
+  distinct() %>% 
+  filter(!is.na(insecticide))
+```
+
+# prop score model imputed 
+```{r}
+prop_score_mod_imputed <- glm(insecticide ~ pulse_avg + 
+      gender + 
+      age_years + 
+      race_ethnicity_detailed + 
+      active_duty_military + 
+      education_level + 
+      marital_status + 
+      household_size + 
+      income_poverty_ratio + 
+      diabetes_diagnosed + 
+      sedentary_minutes + 
+      sleep_hours_weekday + 
+      smoked_100_cigs + 
+      height_inches + 
+      weight_pounds + 
+      mod_activity_per_week, data = imputed_df, 
+      x = TRUE, y = TRUE)
+```
+
+```{r}
+summary(prop_score_mod_imputed)
+```
+
+```{r}
+Z_imputed = prop_score_mod_imputed$y
+logitps_imputed = predict(prop_score_mod_imputed)
+```
+
+```{r}
+plot(density(logitps_imputed[Z_imputed]), col = "red", xlim = c(0,1) , main = "Density Estimates of Propensity Scores")
+lines(density(logitps_imputed[!Z_imputed]))
+legend("topleft", c("Treated", "Control"), col = c("red", "black"), lty = c(1,1))
+```
