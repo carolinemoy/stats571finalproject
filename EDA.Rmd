@@ -97,6 +97,8 @@ PAQ_L <- read_xpt("Data/PAQ_L.xpt")
 SLQ_L <- read_xpt("Data/SLQ_L.xpt")
 SMQ_L <- read_xpt("Data/SMQ_L.xpt")
 WHQ_L <- read_xpt("Data/WHQ_L.xpt")
+WHQ_L <- read_xpt("Data/WHQ_L.xpt")
+AUQ_L <- read_xpt("Data/AUQ_L.xpt")
 ```
 
 ```{r}
@@ -112,6 +114,7 @@ clean_df <- trt_response %>%
   left_join(SLQ_L, by = "SEQN") %>% #sleep disorders 
   left_join(SMQ_L, by = "SEQN") %>% #smoking
   left_join(WHQ_L, by = "SEQN") %>% #weight
+  left_join(AUQ_L, by = "SEQN") %>% #audiometry 
          
   select(insecticide, weed_killers, #treatment(s)
          systolic_avg, diastolic_avg, #response(s)
@@ -119,7 +122,7 @@ clean_df <- trt_response %>%
          RIAGENDR, RIDAGEYR, RIDRETH1, RIDRETH3, DMQMILIZ, DMDBORN4, DMDYRUSR,
          DMDEDUC2, DMDMARTZ, DMDHHSIZ, DMDHRGND, INDFMPIR, ALQ130, 
          DIQ010, LBXTC, DID040, INDFMMPC, PAD790Q, PAD790U, PAD810Q, PAD810U, PAD680,
-         SLD012, SLD013, SMQ020, SMD650, WHD010, WHD020, WHD050
+         SLD012, SLD013, SMQ020, SMD650, WHD010, WHD020, WHD050, AUQ054
          ) %>%
 
   rename(
@@ -160,7 +163,9 @@ clean_df <- trt_response %>%
     # ---------------- WHQ (Weight/Height) ----------------
     height_inches = WHD010,
     weight_pounds = WHD020,
-    weight_1yr_ago = WHD050
+    weight_1yr_ago = WHD050,
+    #---------------- AUQ (Hearing) ----------------
+    hearing_cond = AUQ054
     ) 
 ```
 
@@ -253,15 +258,28 @@ clean_df <- clean_df %>%
     sedentary_minutes = if_else(sedentary_minutes %in% c(7777, 9999), 
                                          NA_real_, sedentary_minutes),
     
+    hearing_cond = if_else(hearing_cond %in% invalid, NA_character_, 
+                           recode(hearing_cond,
+                            `1` = "Excellent",
+                            `2` = "Good",
+                            `3` = "A Little Trouble",
+                            `4` = "Moderate Trouble",
+                            `5` = "Lot of Trouble",
+                            `6` = "Deaf")),
+    
     smoked_100_cigs = recode(smoked_100_cigs, `1` = 1, `2` = 0, `7` = NA_real_, `9` = NA_real_),
     cig_per_day = if_else(cig_per_day %in% c(777, 999), NA_real_, cig_per_day),
     
     height_inches = if_else(height_inches %in% c(7777, 9999), NA_real_, height_inches),
     weight_pounds = if_else(weight_pounds %in% c(7777, 9999), NA_real_, weight_pounds),
-    weight_1yr_ago = if_else(weight_1yr_ago %in% c(7777, 9999), NA_real_, weight_1yr_ago))  %>%
+    weight_1yr_ago = if_else(weight_1yr_ago %in% c(7777, 9999), NA_real_, weight_1yr_ago), 
+    raw_difference = systolic_avg - diastolic_avg, 
+    mean_bp = diastolic_avg + (1/3) * (systolic_avg - diastolic_avg))  %>%
 
   select(-country_of_birth, -mod_activity_freq, -mod_activity_unit, 
          -vig_activity_freq, -vig_activity_unit)
+
+  
 
 ```
 
@@ -339,7 +357,7 @@ wls_2_rand = clean_df %>%
     mutate(insecticide = sample(insecticide))
 wls_2num_g = melt(wls_2_rand %>%
     select(c(insecticide, age_years, income_poverty_ratio, 
-             alcohol_avg_drinks_per_day, tot_cholesterol)), id.var = "insecticides")
+             alcohol_avg_drinks_per_day, tot_cholesterol)), id.var = "insecticide")
 ggplot(data = wls_2num_g, aes(x = variable, y = value)) + geom_boxplot(aes(fill = insecticide)) +
     facet_wrap(~variable, scales = "free")
 ```
