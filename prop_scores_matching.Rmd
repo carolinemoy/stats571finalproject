@@ -4,19 +4,21 @@ output: pdf_document
 date: "2026-03-30"
 ---
 
+# Loading in Required Packages 
 ```{r}
 library(tidyverse)
 library(dplyr)
+library(optmatch)
 ```
 
+# Reading in Data Frame 
 ```{r}
 clean_df <- read_csv("Data/clean_df.csv")
 ```
-#eda 
-```{r}
-clean_df
-```
 
+# EDA
+
+Mainly Investigating NA and missingness patterns. 
 ```{r}
 clean_df %>% 
   group_by(smoked_100_cigs) %>% 
@@ -42,6 +44,12 @@ clean_df %>%
 ```{r}
 table(clean_df$race_ethnicity_detailed)
 ```
+```{r}
+clean_df %>% 
+  distinct() %>% 
+  filter(!is.na(insecticide))
+```
+
 ```{r}
 clean_df %>% 
   group_by(active_duty_military) %>% 
@@ -86,13 +94,15 @@ na_prevalance <- clean_df %>%
 na_prevalance > 0.5
 ```
 
+# Making SubjectID Numbers
 ```{r}
 clean_df = clean_df %>% 
   mutate(subject_ID = `...1`)
 ```
 
+# Complete Cases 
 
-
+Number of Complete Cases for Required Covariates. 
 ```{r}
 sum(complete.cases(clean_df[, c(
   "insecticide", "pulse_avg", "gender", "age_years",
@@ -105,6 +115,7 @@ sum(complete.cases(clean_df[, c(
 )]))
 ```
 
+Complete Cases Indices. 
 ```{r}
 complete_cases <- complete.cases(clean_df[, c(
   "insecticide", "pulse_avg", "gender", "age_years",
@@ -117,21 +128,19 @@ complete_cases <- complete.cases(clean_df[, c(
 )])
 ```
 
-```{r}
-length(complete_cases)
-```
-
-
+# Complete Cases DataFrame
 ```{r}
 complete_cases_df <- clean_df[complete_cases, ]
 
 table(complete_cases_df$insecticide)
 ```
 
-#model
+# Imputation 
+
+Mean for numeric variables and mode for categorical variables. 
 
 ```{r}
-#imputation??
+# Imputation 
 # Function to calculate mode
 get_mode <- function(x) {
   ux <- unique(x[!is.na(x)])
@@ -163,6 +172,8 @@ for (col in names(imputed_df)) {
 }
 ```
 
+# Model (with Complete Cases)
+
 ```{r}
 # propensity score model 
 prop_score_mod <- glm(insecticide ~ pulse_avg + 
@@ -188,29 +199,20 @@ prop_score_mod <- glm(insecticide ~ pulse_avg +
 ```{r}
 summary(prop_score_mod)
 ```
-
-
 ```{r}
 Z = prop_score_mod$y
 logitps = predict(prop_score_mod)
 length(logitps)
 ```
 
-
-```{r}
-#clean_df
-#logitps
-```
-
-
-
+# Checking Overlap with Model with Complete Cases
 ```{r}
 plot(density(logitps[Z]), col = "red", xlim = c(0,1) , main = "Density Estimates of Propensity Scores")
 lines(density(logitps[!Z]))
 legend("topleft", c("Treated", "Control"), col = c("red", "black"), lty = c(1,1))
 ```
 
-
+# Checking Overlap with all Data (using model with just complete cases)
 ```{r}
 covariates <- c(
     "pulse_avg",
@@ -244,7 +246,7 @@ control_prop_scores <- predict(prop_score_mod, control, type = "response")
 hist(control_prop_scores)
 ```
 
-
+# Checking overlap with Imputed Data (with model with just complete cases)
 ```{r}
 #prop score model with clean cases, impute covariates for predicted prop scores so everyone
 #has a prop score: 
@@ -288,7 +290,7 @@ length(prop_scores)
 length(logitps)
 ```
 
-#distmat
+# Distance Matrix 
 
 ```{r}
 distmat.logitps = outer(logitps[Z == 1],logitps[Z==0],"-")
@@ -298,7 +300,7 @@ rownames(distmat.logitps)= rownames(complete_cases_df)[Z == 1]
 colnames(distmat.logitps)= rownames(complete_cases_df)[Z == 0]
 ```
 
-# Implementing Calipers
+# Implementing Calipers on Distance Matrix 
 ```{r}
 addcaliper=function(dmat,z,logitp,calipersd=.2,penalty=1000){
 sd.logitp=sd(logitp)
@@ -309,16 +311,14 @@ dmat
 }
 ```
 
-
+Distance Matrix with Caliper
 ```{r}
 distmat_caliper=addcaliper(distmat.logitps,Z,logitps,calipersd = 0.5)
 ```
 
-# matching
-```{r}
-library(optmatch)
-```
+# Matching
 
+With non-calipered distance matrix (with model for only complete cases on only complete cases dataframe).
 ```{r}
 noControls = 1
 matchvec=pairmatch(distmat.logitps,controls=noControls,data=complete_cases_df)
@@ -327,6 +327,8 @@ matchvec=pairmatch(distmat.logitps,controls=noControls,data=complete_cases_df)
 ```{r}
 summary(matchvec)
 ```
+Generating matrix for paired matches. 
+
 ```{r}
 generating_matched_pair_mat <- function(matched_vec, df){
   matchvec.num = as.numeric(substr(matched_vec,start=3,stop=10))
@@ -358,18 +360,9 @@ df_matched_pairs_no_calip <- generating_matched_pair_mat(matchvec, complete_case
 
 ```
 
+Matching with calipered distance and generating matrix. 
 ```{r}
 matchvec_caliper=pairmatch(distmat_caliper,controls=noControls,data=complete_cases_df)
 
 df_matched_pairs_calip <- generating_matched_pair_mat(matchvec_caliper, complete_cases_df)
 ```
-
-
-
-
-```{r}
-clean_df %>% 
-  distinct() %>% 
-  filter(!is.na(insecticide))
-```
-
