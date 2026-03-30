@@ -83,6 +83,11 @@ na_prevalance > 0.5
 ```
 
 ```{r}
+clean_df = clean_df %>% 
+  mutate(subject_ID = `...1`)
+```
+
+```{r}
 #imputation??
 # Function to calculate mode
 get_mode <- function(x) {
@@ -157,6 +162,34 @@ sum(complete.cases(clean_df[, c(
 ```
 
 ```{r}
+complete_cases <- complete.cases(clean_df[, c(
+  "insecticide", "pulse_avg", "gender", "age_years",
+  "race_ethnicity_detailed", "active_duty_military",
+  "education_level", "marital_status", "household_size",
+  "income_poverty_ratio", "diabetes_diagnosed",
+  "sedentary_minutes", "sleep_hours_weekday",
+  "smoked_100_cigs", "height_inches", "weight_pounds",
+  "mod_activity_per_week"
+)])
+```
+
+```{r}
+length(complete_cases)
+```
+
+
+
+```{r}
+complete_cases_df <- clean_df[complete_cases, ]
+
+table(complete_cases_df$insecticide)
+```
+
+```{r}
+plot(clean_df$mod_activity_per_week, clean_df$sedentary_minutes)
+```
+
+```{r}
 length(logitps)
 ```
 
@@ -174,9 +207,19 @@ legend("topleft", c("Treated", "Control"), col = c("red", "black"), lty = c(1,1)
 distmat.logitps = outer(logitps[Z == 1],logitps[Z==0],"-")
 distmat.logitps = abs(distmat.logitps)
 
-rownames(distmat.logitps)= rownames(clean_df)[Z == 1]
-colnames(distmat.logitps)= rownames(clean_df)[Z == 0]
+rownames(distmat.logitps)= complete_cases_df$subject_ID[Z == 1]
+colnames(distmat.logitps)= complete_cases_df$subject_ID[Z == 0]
 ```
+
+
+```{r}
+
+```
+
+
+
+
+
 
 ```{r}
 length(logitps)
