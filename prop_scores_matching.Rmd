@@ -91,66 +91,6 @@ clean_df = clean_df %>%
   mutate(subject_ID = `...1`)
 ```
 
-#model
-
-```{r}
-#imputation??
-# Function to calculate mode
-get_mode <- function(x) {
-  ux <- unique(x[!is.na(x)])
-  ux[which.max(tabulate(match(x, ux)))]
-}
-
-# Copy your dataset (so you don't overwrite original)
-imputed_df <- clean_df
-
-# Loop through each column
-for (col in names(imputed_df)) {
-  
-  # If numeric → mean imputation
-  if (is.numeric(imputed_df[[col]])) {
-    mean_val <- mean(imputed_df[[col]], na.rm = TRUE)
-    imputed_df[[col]][is.na(imputed_df[[col]])] <- mean_val
-  }
-  
-  # If factor or character → mode imputation
-  else if (is.factor(imputed_df[[col]]) || is.character(imputed_df[[col]])) {
-    mode_val <- get_mode(imputed_df[[col]])
-    imputed_df[[col]][is.na(imputed_df[[col]])] <- mode_val
-    
-    # Optional: convert character → factor (helps with glm)
-    if (is.character(imputed_df[[col]])) {
-      imputed_df[[col]] <- as.factor(imputed_df[[col]])
-    }
-  }
-}
-```
-
-```{r}
-# propensity score model 
-prop_score_mod <- glm(insecticide ~ pulse_avg + 
-      gender + 
-      age_years + 
-      race_ethnicity_detailed + 
-      active_duty_military + 
-      education_level + 
-      marital_status + 
-      household_size + 
-      income_poverty_ratio + 
-      diabetes_diagnosed + 
-      sedentary_minutes + 
-      sleep_hours_weekday + 
-      smoked_100_cigs + 
-      height_inches + 
-      weight_pounds + 
-      mod_activity_per_week, data = clean_df, family = binomial,
-      x = TRUE, y = TRUE)
-```
-
-```{r}
-summary(prop_score_mod)
-```
-
 
 
 ```{r}
@@ -188,6 +128,67 @@ complete_cases_df <- clean_df[complete_cases, ]
 table(complete_cases_df$insecticide)
 ```
 
+#model
+
+```{r}
+#imputation??
+# Function to calculate mode
+get_mode <- function(x) {
+  ux <- unique(x[!is.na(x)])
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+# Copy your dataset (so you don't overwrite original)
+imputed_df <- clean_df
+
+# Loop through each column
+for (col in names(imputed_df)) {
+  
+  # If numeric --> mean imputation
+  if (is.numeric(imputed_df[[col]])) {
+    mean_val <- mean(imputed_df[[col]], na.rm = TRUE)
+    imputed_df[[col]][is.na(imputed_df[[col]])] <- mean_val
+  }
+  
+  # If factor or character --> mode imputation
+  else if (is.factor(imputed_df[[col]]) || is.character(imputed_df[[col]])) {
+    mode_val <- get_mode(imputed_df[[col]])
+    imputed_df[[col]][is.na(imputed_df[[col]])] <- mode_val
+    
+    # Optional: convert character --> factor (helps with glm)
+    if (is.character(imputed_df[[col]])) {
+      imputed_df[[col]] <- as.factor(imputed_df[[col]])
+    }
+  }
+}
+```
+
+```{r}
+# propensity score model 
+prop_score_mod <- glm(insecticide ~ pulse_avg + 
+      gender + 
+      age_years + 
+      race_ethnicity_detailed + 
+      active_duty_military + 
+      education_level + 
+      marital_status + 
+      household_size + 
+      income_poverty_ratio + 
+      diabetes_diagnosed + 
+      sedentary_minutes + 
+      sleep_hours_weekday + 
+      smoked_100_cigs + 
+      height_inches + 
+      weight_pounds + 
+      mod_activity_per_week, 
+      data = complete_cases_df, family = binomial,
+      x = TRUE, y = TRUE)
+```
+
+```{r}
+summary(prop_score_mod)
+```
+
 
 ```{r}
 Z = prop_score_mod$y
@@ -200,6 +201,8 @@ length(logitps)
 #clean_df
 #logitps
 ```
+
+
 
 ```{r}
 plot(density(logitps[Z]), col = "red", xlim = c(0,1) , main = "Density Estimates of Propensity Scores")
@@ -228,6 +231,7 @@ covariates <- c(
     "mod_activity_per_week"
   )
   
+#without imputing, limited observations
 treated <- clean_df[clean_df$insecticide == TRUE, c(covariates, "insecticide")]
 control <- clean_df[clean_df$insecticide == FALSE, c(covariates, "insecticide")]
 ```
@@ -242,7 +246,8 @@ hist(control_prop_scores)
 
 
 ```{r}
-#regular prop score model, impute predicted prop scores for dist mat: 
+#prop score model with clean cases, impute covariates for predicted prop scores so everyone
+#has a prop score: 
 
 treated_imp <- imputed_df[imputed_df$insecticide == TRUE, c(covariates, "insecticide")]
 control_imp <- imputed_df[imputed_df$insecticide == FALSE, c(covariates, "insecticide")]
@@ -267,8 +272,21 @@ range(control_prop_scores_imp)
 
 cat("Treated Proportion with Propensity Scores < 0.0001", mean(treated_prop_scores_imp < 0.0001), "\n")
 cat("Control Proportion with Propensity Scores < 0.0001",  mean(control_prop_scores_imp < 0.0001))
+
+#nothing crazy
 ```
 
+```{r}
+#final prop score: 
+
+prop_score_df <- imputed_df[, c(covariates, "insecticide")]
+prop_scores <- predict(prop_score_mod, prop_score_df, type = "response")
+```
+
+```{r}
+length(prop_scores)
+length(logitps)
+```
 
 #distmat
 
@@ -276,9 +294,77 @@ cat("Control Proportion with Propensity Scores < 0.0001",  mean(control_prop_sco
 distmat.logitps = outer(logitps[Z == 1],logitps[Z==0],"-")
 distmat.logitps = abs(distmat.logitps)
 
-rownames(distmat.logitps)= complete_cases_df$subject_ID[Z == 1]
-colnames(distmat.logitps)= complete_cases_df$subject_ID[Z == 0]
+rownames(distmat.logitps)= rownames(complete_cases_df)[Z == 1]
+colnames(distmat.logitps)= rownames(complete_cases_df)[Z == 0]
 ```
+
+# Implementing Calipers
+```{r}
+addcaliper=function(dmat,z,logitp,calipersd=.2,penalty=1000){
+sd.logitp=sd(logitp)
+adif=abs(outer(logitp[z==1],logitp[z==0],"-"))
+adif=(adif-(calipersd*sd.logitp))*(adif>(calipersd*sd.logitp))
+dmat=dmat+adif*penalty
+dmat
+}
+```
+
+
+```{r}
+distmat_caliper=addcaliper(distmat.logitps,Z,logitps,calipersd = 0.5)
+```
+
+# matching
+```{r}
+library(optmatch)
+```
+
+```{r}
+noControls = 1
+matchvec=pairmatch(distmat.logitps,controls=noControls,data=complete_cases_df)
+```
+
+```{r}
+summary(matchvec)
+```
+```{r}
+generating_matched_pair_mat <- function(matched_vec, df){
+  matchvec.num = as.numeric(substr(matched_vec,start=3,stop=10))
+  matchvec.num.notNA = matchvec.num[!is.na(matchvec.num)] #To remove individuals who didn't get matched.
+  matchID <- unique(matchvec.num.notNA)
+  
+  I = length(matchID)
+  
+  matchedPairMat = matrix(0,I,4)
+  colnames(matchedPairMat) = c("SubjectID (Treated)","SubjectID (Control)","PS (Treated)","PS (Control)")
+  treatedSubjID = rownames(df)[Z==1]
+  controlSubjID = rownames(df)[Z==0]
+  
+  treatedSubjID = as.integer(treatedSubjID)
+  controlSubjID = as.integer(controlSubjID)
+  
+  for(i in 1:I) {
+  subjectIDs = which(matchvec.num == matchID[i])
+  matchedPairMat[i,"SubjectID (Treated)"] = subjectIDs[subjectIDs %in% treatedSubjID]
+  matchedPairMat[i,"SubjectID (Control)"] = subjectIDs[subjectIDs %in% controlSubjID]
+  matchedPairMat[i,"PS (Treated)"] = round(logitps[matchedPairMat[i,"SubjectID (Treated)"]],3)
+  matchedPairMat[i,"PS (Control)"] = round(logitps[matchedPairMat[i,"SubjectID (Control)"]],3)
+  }
+  return(matchedPairMat)
+}
+
+
+df_matched_pairs_no_calip <- generating_matched_pair_mat(matchvec, complete_cases_df)
+
+```
+
+```{r}
+matchvec_caliper=pairmatch(distmat_caliper,controls=noControls,data=complete_cases_df)
+
+df_matched_pairs_calip <- generating_matched_pair_mat(matchvec_caliper, complete_cases_df)
+```
+
+
 
 
 ```{r}
@@ -287,38 +373,3 @@ clean_df %>%
   filter(!is.na(insecticide))
 ```
 
-# prop score model imputed 
-```{r}
-prop_score_mod_imputed <- glm(insecticide ~ pulse_avg + 
-      gender + 
-      age_years + 
-      race_ethnicity_detailed + 
-      active_duty_military + 
-      education_level + 
-      marital_status + 
-      household_size + 
-      income_poverty_ratio + 
-      diabetes_diagnosed + 
-      sedentary_minutes + 
-      sleep_hours_weekday + 
-      smoked_100_cigs + 
-      height_inches + 
-      weight_pounds + 
-      mod_activity_per_week, data = imputed_df, family = "binomial",
-      x = TRUE, y = TRUE)
-```
-
-```{r}
-summary(prop_score_mod_imputed)
-```
-
-```{r}
-Z_imputed = prop_score_mod_imputed$y
-logitps_imputed = predict(prop_score_mod_imputed)
-```
-
-```{r}
-plot(density(logitps_imputed[Z_imputed]), col = "red", xlim = c(0,1) , main = "Density Estimates of Propensity Scores")
-lines(density(logitps_imputed[!Z_imputed]))
-legend("topleft", c("Treated", "Control"), col = c("red", "black"), lty = c(1,1))
-```
