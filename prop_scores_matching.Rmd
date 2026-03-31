@@ -9,6 +9,7 @@ date: "2026-03-30"
 library(tidyverse)
 library(dplyr)
 library(optmatch)
+library(ggplot2)
 ```
 
 # Reading in Data Frame 
@@ -135,6 +136,65 @@ complete_cases_df <- clean_df[complete_cases, ]
 table(complete_cases_df$insecticide)
 ```
 
+# Standardized Differences Before Matching 
+On Complete Cases Data. 
+
+```{r}
+table(complete_cases_df$race_ethnicity_detailed)
+
+sum(is.na(clean_df$race_ethnicity))
+sum(is.na(clean_df$race_ethnicity_detailed))
+```
+
+
+```{r}
+complete_cases_df_encoded = complete_cases_df %>% 
+  mutate(gender = ifelse(gender == "Female", 1, 0), # Female is 1, Male 0
+         Mexican = ifelse(race_ethnicity_detailed == "Mexican American", 1, 0), 
+         Asian = ifelse(race_ethnicity_detailed == "Non-Hispanic Asian", 1, 0),
+         Black = ifelse(race_ethnicity_detailed == "Non-Hispanic Black", 1, 0), 
+         White = ifelse(race_ethnicity_detailed == "Non-Hispanic White", 1, 0), 
+         Hispanic = ifelse(race_ethnicity_detailed == "Other Hispanic", 1, 0), 
+         Other = ifelse(race_ethnicity_detailed == "Other Race", 1, 0), 
+         Less_9th_grade = ifelse(education_level == "<9th grade", 1, 0), 
+         Some_High_School = ifelse(education_level == "9-11th grade", 1, 0), 
+         High_School_Degree = ifelse(education_level == "High school/GED", 1, 0), 
+         Some_College = ifelse(education_level == "Some college/AA", 1, 0), 
+         College_Grad_or_More = ifelse(education_level == "College graduate or above", 1, 0), 
+         Divorced = ifelse(marital_status == "Divorced", 1, 0), 
+         Married = ifelse(marital_status == "Married", 1, 0), 
+         Widowed = ifelse(marital_status == "Widowed", 1, 0)) 
+```
+
+```{r}
+standardized_differences_df = complete_cases_df_encoded[, c(
+  "insecticide", "pulse_avg", "gender", "age_years",
+  "Mexican", "Asian", "Black", "White", "Hispanic", "Other", 
+  "active_duty_military", 
+  "Less_9th_grade", "Some_High_School", "High_School_Degree", "Some_College", "College_Grad_or_More",
+  "Divorced", "Married", "Widowed", 
+  "household_size",
+  "income_poverty_ratio", "diabetes_diagnosed",
+  "sedentary_minutes", "sleep_hours_weekday",
+  "smoked_100_cigs", "height_inches", "weight_pounds",
+  "mod_activity_per_week"
+)]
+```
+
+```{r}
+treatedmat=standardized_differences_df %>% 
+  filter(insecticide == 1)
+# Standardized differences before matching
+controlmat.before=standardized_differences_df %>% 
+  filter(insecticide == 0)
+
+controlmean.before=apply(controlmat.before,2,mean,na.rm=TRUE);
+treatmean=apply(treatedmat,2,mean,na.rm=TRUE);
+treatvar=apply(treatedmat,2,var,na.rm=TRUE);
+controlvar=apply(controlmat.before,2,var,na.rm=TRUE);
+stand.diff.before=(treatmean-controlmean.before)/sqrt((treatvar+controlvar)/2);
+```
+
 # Imputation 
 
 Mean for numeric variables and mode for categorical variables. 
@@ -194,6 +254,35 @@ prop_score_mod <- glm(insecticide ~ pulse_avg +
       mod_activity_per_week, 
       data = complete_cases_df, family = binomial,
       x = TRUE, y = TRUE)
+
+prop_score_mod_encoded <- glm(insecticide ~ pulse_avg + 
+      gender + 
+      age_years + 
+      Mexican + 
+      Asian + 
+      Black + 
+      White + 
+      Hispanic + 
+      Other + 
+      active_duty_military + 
+      Less_9th_grade + 
+      Some_High_School + High_School_Degree + 
+      Some_College + 
+      College_Grad_or_More + 
+      Divorced + 
+      Married + 
+      Widowed +   
+      household_size + 
+      income_poverty_ratio + 
+      diabetes_diagnosed + 
+      sedentary_minutes + 
+      sleep_hours_weekday + 
+      smoked_100_cigs + 
+      height_inches + 
+      weight_pounds + 
+      mod_activity_per_week, 
+      data = complete_cases_df_encoded, family = binomial,
+      x = TRUE, y = TRUE)
 ```
 
 ```{r}
@@ -203,6 +292,13 @@ summary(prop_score_mod)
 Z = prop_score_mod$y
 logitps = predict(prop_score_mod)
 length(logitps)
+```
+
+
+```{r}
+Z_encoded = prop_score_mod_encoded$y
+logitps_encoded = predict(prop_score_mod_encoded)
+length(logitps_encoded)
 ```
 
 # Checking Overlap with Model with Complete Cases
@@ -300,6 +396,15 @@ rownames(distmat.logitps)= rownames(complete_cases_df)[Z == 1]
 colnames(distmat.logitps)= rownames(complete_cases_df)[Z == 0]
 ```
 
+
+```{r}
+distmat.logitps_encoded = outer(logitps_encoded[Z_encoded == 1],logitps_encoded[Z_encoded==0],"-")
+distmat.logitps_encoded = abs(distmat.logitps_encoded)
+
+rownames(distmat.logitps_encoded)= rownames(complete_cases_df_encoded)[Z_encoded == 1]
+colnames(distmat.logitps_encoded)= rownames(complete_cases_df_encoded)[Z_encoded == 0]
+```
+
 # Implementing Calipers on Distance Matrix 
 ```{r}
 addcaliper=function(dmat,z,logitp,calipersd=.2,penalty=1000){
@@ -314,6 +419,8 @@ dmat
 Distance Matrix with Caliper
 ```{r}
 distmat_caliper=addcaliper(distmat.logitps,Z,logitps,calipersd = 0.5)
+
+distmat_caliper_encoded=addcaliper(distmat.logitps_encoded,Z_encoded,logitps_encoded,calipersd = 0.5)
 ```
 
 # Matching
@@ -366,3 +473,42 @@ matchvec_caliper=pairmatch(distmat_caliper,controls=noControls,data=complete_cas
 
 df_matched_pairs_calip <- generating_matched_pair_mat(matchvec_caliper, complete_cases_df)
 ```
+
+
+Matching with encoded data. 
+```{r}
+matchvec_encoded=pairmatch(distmat.logitps_encoded,controls=noControls,data=complete_cases_df_encoded)
+
+df_matched_pairs_encoded <- generating_matched_pair_mat(matchvec_encoded, complete_cases_df_encoded)
+```
+
+Matched with encoded data calipers. 
+```{r}
+matchvec_caliper_encoded=pairmatch(distmat_caliper_encoded,controls=noControls,data=complete_cases_df_encoded)
+
+df_matched_pairs_calip_encoded <- generating_matched_pair_mat(matchvec_caliper_encoded, complete_cases_df_encoded)
+```
+
+# Standardized Differences After Matching 
+```{r}
+controlmat.after=standardized_differences_df[df_matched_pairs_encoded[,2],];
+controlmean.after=apply(controlmat.after,2,mean);
+
+stand.diff.after=(treatmean-controlmean.after)/sqrt((treatvar+controlvar)/2);
+
+standBeforeAfter = cbind(stand.diff.before[-1],stand.diff.after[-1])
+
+colnames(standBeforeAfter ) = c("Before Match (Standardized Diff)",
+"After Match (Standardized Diff)")
+knitr::kable(round(abs(standBeforeAfter),3), caption = "Differences in Covariates (Before and After)")
+```
+
+# Love Plot 
+```{r}
+abs.stand.diff.before=abs(stand.diff.before[-1])
+abs.stand.diff.after=abs(stand.diff.after[-1])
+covariates=names(stand.diff.before[-1])
+plot.dataframe=data.frame(abs.stand.diff=c(abs.stand.diff.before,abs.stand.diff.after),covariates=rep(covariates,2),type=c(rep("Before",length(covariates)),rep("After",length(covariates))))
+ggplot(plot.dataframe,aes(x=abs.stand.diff,y=covariates))+geom_point(size=5,aes(shape=factor(type)))+scale_shape_manual(values=c(4,1))+geom_vline(xintercept=c(.1,.2),lty=2)
+```
+
