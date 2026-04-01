@@ -197,4 +197,4 @@ barchart_func(smoked_100_cigs)
 
 
 
-
+Next look at if missing what variables are missing together (are there bunches that are always missing at the same time)???
