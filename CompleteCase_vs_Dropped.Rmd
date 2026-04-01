@@ -1,0 +1,200 @@
+---
+title: "CompleteCase_vs_Dropped"
+output: pdf_document
+date: "2026-04-01"
+---
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(glue)
+```
+
+```{r}
+clean_df <- read_csv("/Users/carolinemoy/stats571finalproj/Data/clean_df.csv")
+```
+
+```{r}
+complete_cases <- complete.cases(clean_df[, c(
+  "insecticide", "pulse_avg", "gender", "age_years",
+  "race_ethnicity_detailed", "active_duty_military",
+  "education_level", "marital_status", "household_size",
+  "income_poverty_ratio", "diabetes_diagnosed",
+  "sedentary_minutes", "sleep_hours_weekday",
+  "smoked_100_cigs", "height_inches", "weight_pounds",
+  "mod_activity_per_week"
+)])
+```
+
+```{r}
+clean_df <- clean_df %>% 
+  mutate(complete_case = complete_cases)
+
+write.csv(clean_df, file = "/Users/carolinemoy/stats571finalproj/Data/clean_df.csv", row.names = FALSE)
+```
+
+# Analyzing which variables have the missingness 
+```{r}
+colSums(is.na(clean_df[, c(
+  "insecticide", "pulse_avg", "gender", "age_years",
+  "race_ethnicity_detailed", "active_duty_military",
+  "education_level", "marital_status", "household_size",
+  "income_poverty_ratio", "diabetes_diagnosed",
+  "sedentary_minutes", "sleep_hours_weekday",
+  "smoked_100_cigs", "height_inches", "weight_pounds",
+  "mod_activity_per_week"
+)]))
+```
+
+```{r}
+clean_df %>% 
+  group_by(insecticide) %>% 
+  summarize(n = n())
+```
+
+# t-testing between incomplete and complete datasets for different variables 
+
+```{r}
+variables_with_missingness <- c("insecticide", "pulse_avg", "active_duty_military",
+  "Less_9th_grade", "Some_High_School", "High_School_Degree", "Some_College", "College_Grad_or_More",
+  "Married", "Divorced", "Widowed", 
+  "income_poverty_ratio", "diabetes_diagnosed",
+  "sedentary_minutes", "sleep_hours_weekday",
+  "smoked_100_cigs", "height_inches", "weight_pounds",
+  "mod_activity_per_week")
+```
+
+```{r}
+p_val_vec <- unlist(lapply(variables_with_missingness, function(col) {
+  result <- t.test(
+    clean_df[clean_df$complete_case == 1, ][[col]],
+    clean_df[clean_df$complete_case == 0, ][[col]]
+  )
+  result$p.value
+}))
+```
+
+```{r}
+differences_df <- data.frame(variables_with_missingness, p_val_vec)
+```
+
+```{r}
+differences_df %>% 
+  mutate(significant_difference = p_val_vec < 0.05)
+```
+
+```{r}
+p_val <- differences_df %>% 
+  filter(variables_with_missingness == "pulse_avg") %>% 
+  select(p_val_vec) 
+
+as.double(p_val)
+```
+
+# Visualizing these Differences
+
+```{r}
+cont_variables <- c("pulse_avg",
+  "income_poverty_ratio", 
+  "sedentary_minutes", "sleep_hours_weekday",
+  "height_inches", "weight_pounds",
+  "mod_activity_per_week")
+
+discrete_variables <- c("insecticide", "active_duty_military",
+  "Less_9th_grade", "Some_High_School", "High_School_Degree", "Some_College", "College_Grad_or_More",
+  "Married", "Divorced", "Widowed", 
+  "diabetes_diagnosed",
+  "smoked_100_cigs")
+```
+
+Continuous Variables 
+```{r}
+histogram_func <- function(variable){
+  var_name <- deparse(substitute(variable))
+  
+  p_val <- differences_df %>% 
+  filter(variables_with_missingness == var_name) %>% 
+  select(p_val_vec) 
+
+  p_val <- as.double(p_val)
+  
+  graph_hist <- clean_df %>% 
+  ggplot(aes(x = {{variable}}, fill = complete_case)) + 
+  geom_histogram() + 
+  labs(title = glue("{var_name} Complete Case vs. Not"), subtitle = glue("{p_val} p-value"), fill = "Complete Case")
+  theme_classic()
+  
+  return(graph_hist)
+}
+```
+
+```{r}
+histogram_func(pulse_avg)
+```
+
+```{r}
+histogram_func(income_poverty_ratio)
+```
+
+```{r}
+histogram_func(sedentary_minutes)
+```
+
+```{r}
+histogram_func(sleep_hours_weekday)
+```
+
+```{r}
+histogram_func(height_inches)
+```
+
+```{r}
+histogram_func(weight_pounds)
+```
+
+```{r}
+histogram_func(mod_activity_per_week)
+```
+
+Discrete Variables 
+
+```{r}
+barchart_func <- function(variable){
+  var_name <- deparse(substitute(variable))
+  
+  p_val <- differences_df %>% 
+  filter(variables_with_missingness == var_name) %>% 
+  select(p_val_vec) 
+
+  p_val <- as.double(p_val)
+  
+  bar_hist <- clean_df %>% 
+  ggplot(aes(x = as.factor({{variable}}), fill = complete_case)) + 
+  geom_bar(position = "fill") + 
+  labs(title = glue("{var_name} Complete Case vs. Not"), subtitle = glue("{p_val} p-value"), fill = "Complete Case", x = glue("{var_name}"))
+  theme_classic()
+  
+  return(bar_hist)
+}
+```
+
+```{r}
+barchart_func(insecticide)
+barchart_func(active_duty_military)
+barchart_func(Less_9th_grade)
+barchart_func(Some_High_School)
+barchart_func(High_School_Degree)
+barchart_func(Some_College)
+barchart_func(College_Grad_or_More)
+barchart_func(Married)
+barchart_func(Divorced)
+barchart_func(Widowed)
+barchart_func(diabetes_diagnosed)
+barchart_func(smoked_100_cigs)
+```
+
+
+
+
+
