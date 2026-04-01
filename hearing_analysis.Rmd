@@ -64,19 +64,48 @@ hearing_conditions_df %>%
 ```
 
 # Checking Income and Hearing Condition 
-```{r}
-c("Excellent", "Good", 
-                                                        "A Little Trouble", 
-                                                        "Moderate Trouble", 
-                                                        "Lot of Trouble", 
-                                                        "Deaf")
 
-p_val_vec_income <- unlist(lapply(hearing_conditions, function(col) {
+```{r}
+hearing_income_test <- aov(income_poverty_ratio ~ hearing_cond, data = clean_df)
+
+summary(hearing_income_test)
+```
+
+```{r}
+TukeyHSD(hearing_income_test)
+```
+
+# Checking Age and Hearing Condition 
+
+```{r}
+hearing_age_test <- aov(age_years ~ hearing_cond, data = clean_df)
+
+summary(hearing_age_test)
+```
+
+```{r}
+TukeyHSD(hearing_age_test)
+```
+
+# Checking Gender and Hearing Condition 
+
+```{r}
+p_val_vec_gender <- unlist(lapply(hearing_conditions, function(col) {
   result <- t.test(
-    clean_df[clean_df$hearing_cond == col, ][[col]],
-    clean_df[clean_df$insecticide == col, ][[col]]
+    clean_df[clean_df$gender == "Male", ][[col]],
+    clean_df[clean_df$gender == "Female", ][[col]]
   )
   result$p.value
 }))
 ```
+
+```{r}
+hearing_conditions_gender_df <- data.frame(hearing_conditions, p_val_vec_gender)
+```
+
+```{r}
+hearing_conditions_gender_df %>% 
+  mutate(significant_diff = ifelse(p_val_vec_gender < 0.05, TRUE, FALSE))
+```
+
 
