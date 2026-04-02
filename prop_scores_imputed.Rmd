@@ -71,7 +71,7 @@ for (col in covariates_to_impute) {
   # 1. get column
   x <- final_imputed_df[[col]]
   
-  # 2. create indicator BEFORE changing anything
+  # 2. create indicator 
   final_imputed_df[[paste0(col, "_imputed")]] <- ifelse(is.na(x), 1, 0)
   
   # 3. compute imputation value
@@ -94,15 +94,30 @@ for (col in covariates_to_impute) {
 
 ```
 
+```{r}
+# re-do encoding for columns that needed imputation 
+final_imputed_df = final_imputed_df %>% 
+  mutate(Less_9th_grade = ifelse(education_level == "<9th grade", 1, 0), 
+         Some_High_School = ifelse(education_level == "9-11th grade", 1, 0), 
+         High_School_Degree = ifelse(education_level == "High school/GED", 1, 0), 
+         Some_College = ifelse(education_level == "Some college/AA", 1, 0), 
+         College_Grad_or_More = ifelse(education_level == "College graduate or above", 1, 0), 
+         Divorced = ifelse(marital_status == "Divorced", 1, 0), 
+         Married = ifelse(marital_status == "Married", 1, 0), 
+         Widowed = ifelse(marital_status == "Widowed", 1, 0)) 
+```
+
 
 ```{r}
 prop_score_mod_imputed <- glm(insecticide ~ pulse_avg +
       gender + 
       age_years + 
-      race_ethnicity_detailed + 
+      Mexican + Asian + Black + White + Hispanic + 
+        Other +
       active_duty_military + active_duty_military_imputed +
-      education_level + education_level_imputed +
-      marital_status + marital_status_imputed +
+      Less_9th_grade + Some_High_School + High_School_Degree + 
+        Some_College + College_Grad_or_More + education_level_imputed +
+      Divorced + Married + Widowed + marital_status_imputed +
       household_size + 
       income_poverty_ratio + income_poverty_ratio_imputed +
       diabetes_diagnosed + diabetes_diagnosed_imputed +
@@ -114,8 +129,7 @@ prop_score_mod_imputed <- glm(insecticide ~ pulse_avg +
       mod_activity_per_week + mod_activity_per_week_imputed,
       data = final_imputed_df, family = binomial,
       x = TRUE, y = TRUE)
-
-
+#NOTE: remove one from each category? 
 ```
 
 ```{r}
@@ -185,7 +199,96 @@ addcaliper = function(dmat,z,logitp,calipersd=.2,penalty=1000){
 distmat_caliper = addcaliper(distmat.logitps, Z, logitps, calipersd = 0.5)
 ```
 
-#matching, standardized differences, love plot
+# Matching 
+
+```{r}
+noControls = 1
+
+matchvec_caliper=pairmatch(distmat_caliper,controls=noControls,data=final_imputed_df)
+summary(matchvec_caliper)
+```
+
+```{r}
+generating_matched_pair_mat <- function(matched_vec, df){
+  matchvec.num = as.numeric(substr(matched_vec,start=3,stop=10))
+  matchvec.num.notNA = matchvec.num[!is.na(matchvec.num)] #To remove individuals who didn't get matched.
+  matchID <- unique(matchvec.num.notNA)
+  
+  I = length(matchID)
+  
+  matchedPairMat = matrix(0,I,4)
+  colnames(matchedPairMat) = c("SubjectID (Treated)","SubjectID (Control)","PS (Treated)","PS (Control)")
+  treatedSubjID = rownames(df)[Z==1]
+  controlSubjID = rownames(df)[Z==0]
+  
+  treatedSubjID = as.integer(treatedSubjID)
+  controlSubjID = as.integer(controlSubjID)
+  
+  for(i in 1:I) {
+  subjectIDs = which(matchvec.num == matchID[i])
+  matchedPairMat[i,"SubjectID (Treated)"] = subjectIDs[subjectIDs %in% treatedSubjID]
+  matchedPairMat[i,"SubjectID (Control)"] = subjectIDs[subjectIDs %in% controlSubjID]
+  matchedPairMat[i,"PS (Treated)"] = round(logitps[matchedPairMat[i,"SubjectID (Treated)"]],3)
+  matchedPairMat[i,"PS (Control)"] = round(logitps[matchedPairMat[i,"SubjectID (Control)"]],3)
+  }
+  return(matchedPairMat)
+}
+
+df_matched_pairs_calip <- generating_matched_pair_mat(matchvec_caliper, final_imputed_df)
+```
+
+# Standarized Differences 
+
+```{r}
+standardized_differences_df = final_imputed_df[, c(
+  "insecticide", "pulse_avg", "gender", "age_years",
+  "Mexican", "Asian", "Black", "White", "Hispanic", "Other", 
+  "active_duty_military", 
+  "Less_9th_grade", "Some_High_School", "High_School_Degree", "Some_College", "College_Grad_or_More",
+  "Divorced", "Married", "Widowed", 
+  "household_size",
+  "income_poverty_ratio", "diabetes_diagnosed",
+  "sedentary_minutes", "sleep_hours_weekday",
+  "smoked_100_cigs", "height_inches", "weight_pounds",
+  "mod_activity_per_week"
+)]
+```
 
 
+```{r}
+treatedmat=standardized_differences_df %>% 
+  filter(insecticide == 1)
+# Standardized differences before matching
+controlmat.before=standardized_differences_df %>% 
+  filter(insecticide == 0)
+
+controlmean.before=apply(controlmat.before,2,mean,na.rm=TRUE);
+treatmean=apply(treatedmat,2,mean,na.rm=TRUE);
+treatvar=apply(treatedmat,2,var,na.rm=TRUE);
+controlvar=apply(controlmat.before,2,var,na.rm=TRUE);
+stand.diff.before=(treatmean-controlmean.before)/sqrt((treatvar+controlvar)/2);
+```
+
+```{r}
+controlmat.after=standardized_differences_df[df_matched_pairs_calip[,2],];
+controlmean.after=apply(controlmat.after,2,mean);
+
+stand.diff.after=(treatmean-controlmean.after)/sqrt((treatvar+controlvar)/2);
+
+standBeforeAfter = cbind(stand.diff.before[-1],stand.diff.after[-1])
+
+colnames(standBeforeAfter ) = c("Before Match (Standardized Diff)",
+"After Match (Standardized Diff)")
+knitr::kable(round(abs(standBeforeAfter),3), caption = "Differences in Covariates (Before and After)")
+```
+
+
+# Love Plot 
+```{r}
+abs.stand.diff.before=abs(stand.diff.before[-1])
+abs.stand.diff.after=abs(stand.diff.after[-1])
+covariates=names(stand.diff.before[-1])
+plot.dataframe=data.frame(abs.stand.diff=c(abs.stand.diff.before,abs.stand.diff.after),covariates=rep(covariates,2),type=c(rep("Before",length(covariates)),rep("After",length(covariates))))
+ggplot(plot.dataframe,aes(x=abs.stand.diff,y=covariates))+geom_point(size=5,aes(shape=factor(type)))+scale_shape_manual(values=c(4,1))+geom_vline(xintercept=c(.1,.2),lty=2)
+```
 
