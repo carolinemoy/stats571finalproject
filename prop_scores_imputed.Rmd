@@ -1,0 +1,191 @@
+
+#Reading / Libraries 
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(optmatch)
+library(ggplot2)
+
+clean_df <- read_csv("Data/clean_df.csv")
+
+clean_df = clean_df %>% 
+  mutate(subject_ID = `...1`)
+```
+
+# MODEL with Imputed Data (and indictator of whether value is imputed)
+```{r}
+covariates <- c(
+    "pulse_avg",
+    "gender",
+    "age_years",
+    "race_ethnicity_detailed",
+    "active_duty_military",
+    "education_level",
+    "marital_status",
+    "household_size",
+    "income_poverty_ratio",
+    "diabetes_diagnosed",
+    "sedentary_minutes",
+    "sleep_hours_weekday",
+    "smoked_100_cigs",
+    "height_inches",
+    "weight_pounds",
+    "mod_activity_per_week")
+ 
+variables_of_interest <- c(covariates, "mean_bp", "insecticide", "hearing_cond")
+
+
+na_counts <- sapply(clean_df[, variables_of_interest], function(x) sum(is.na(x)))
+na_counts #na_counts among variables of interest  
+```
+
+```{r}
+#NOTE: THERE ARE 63 MISSING INSECTICIDE AND 283 MISSING BP -- 
+#removing these from df because we won't be able to use them anyway 
+#also means pulse_avg won't have any missing anymore 
+
+final_imputed_df <- clean_df %>% 
+  drop_na(insecticide, mean_bp)
+```
+
+```{r}
+covariates_to_impute <- c(
+    "active_duty_military",
+    "education_level",
+    "marital_status",
+    "income_poverty_ratio",
+    "diabetes_diagnosed",
+    "sedentary_minutes",
+    "sleep_hours_weekday",
+    "smoked_100_cigs",
+    "height_inches",
+    "weight_pounds",
+    "mod_activity_per_week"
+  )
+  
+
+
+for (col in covariates_to_impute) {
+  
+  # 1. get column
+  x <- final_imputed_df[[col]]
+  
+  # 2. create indicator BEFORE changing anything
+  final_imputed_df[[paste0(col, "_imputed")]] <- ifelse(is.na(x), 1, 0)
+  
+  # 3. compute imputation value
+  if (is.numeric(x)) {
+    impute_val <- mean(x, na.rm = TRUE)
+  } else {
+    impute_val <- names(sort(table(x), decreasing = TRUE))[1]
+  }
+  
+  # 4. replace NA values
+  x[is.na(x)] <- impute_val
+  
+  if (is.character(x)) {
+    x <- as.factor(x)
+  }
+  
+  # 5. put column back
+  final_imputed_df[[col]] <- x
+}
+
+```
+
+
+```{r}
+prop_score_mod_imputed <- glm(insecticide ~ pulse_avg +
+      gender + 
+      age_years + 
+      race_ethnicity_detailed + 
+      active_duty_military + active_duty_military_imputed +
+      education_level + education_level_imputed +
+      marital_status + marital_status_imputed +
+      household_size + 
+      income_poverty_ratio + income_poverty_ratio_imputed +
+      diabetes_diagnosed + diabetes_diagnosed_imputed +
+      sedentary_minutes + sedentary_minutes_imputed +
+      sleep_hours_weekday + sleep_hours_weekday_imputed +
+      smoked_100_cigs + smoked_100_cigs_imputed +
+      height_inches + height_inches_imputed +
+      weight_pounds + weight_pounds_imputed +
+      mod_activity_per_week + mod_activity_per_week_imputed,
+      data = final_imputed_df, family = binomial,
+      x = TRUE, y = TRUE)
+
+
+```
+
+```{r}
+summary(prop_score_mod_imputed)
+```
+
+
+# Check Overlap
+
+
+```{r}
+prop_scores <- predict(prop_score_mod_imputed, final_imputed_df, type = "response")
+treated_prop_scores <- prop_scores[final_imputed_df$insecticide == TRUE]
+control_prop_scores <- prop_scores[final_imputed_df$insecticide == FALSE]
+
+```
+
+
+
+```{r}
+hist(treated_prop_scores)
+
+hist(control_prop_scores)
+```
+```{r}
+# report the fraction of treated and control individuals that
+# have an estimated propensity score below 0.0001
+
+cat("Treated Proportion with Propensity Scores < 0.0001", mean(treated_prop_scores < 0.0001), "\n")
+cat("Control Proportion with Propensity Scores < 0.0001",  mean(control_prop_scores < 0.0001))
+
+#nothing crazy
+```
+
+# Distance Matrix + Caliper 
+
+```{r}
+Z = prop_score_mod_imputed$y
+length(prop_scores)
+
+logitps = predict(prop_score_mod_imputed)
+length(logitps)
+
+```
+
+
+```{r}
+distmat.logitps = outer(logitps[Z == 1],logitps[Z==0],"-")
+distmat.logitps = abs(distmat.logitps)
+
+rownames(distmat.logitps)= rownames(final_imputed_df)[Z == 1]
+colnames(distmat.logitps)= rownames(final_imputed_df)[Z == 0]
+```
+
+
+```{r}
+addcaliper = function(dmat,z,logitp,calipersd=.2,penalty=1000){
+  sd.logitp=sd(logitp)
+  adif=abs(outer(logitp[z==1],logitp[z==0],"-"))
+  adif=(adif-(calipersd*sd.logitp))*(adif>(calipersd*sd.logitp))
+  dmat=dmat+adif*penalty
+  dmat
+}
+```
+
+```{r}
+distmat_caliper = addcaliper(distmat.logitps, Z, logitps, calipersd = 0.5)
+```
+
+#matching, standardized differences, love plot
+
+
+

@@ -386,6 +386,10 @@ length(prop_scores)
 length(logitps)
 ```
 
+
+
+
+
 # Distance Matrix 
 
 ```{r}
@@ -511,4 +515,11 @@ covariates=names(stand.diff.before[-1])
 plot.dataframe=data.frame(abs.stand.diff=c(abs.stand.diff.before,abs.stand.diff.after),covariates=rep(covariates,2),type=c(rep("Before",length(covariates)),rep("After",length(covariates))))
 ggplot(plot.dataframe,aes(x=abs.stand.diff,y=covariates))+geom_point(size=5,aes(shape=factor(type)))+scale_shape_manual(values=c(4,1))+geom_vline(xintercept=c(.1,.2),lty=2)
 ```
+
+
+
+
+
+
+
 
