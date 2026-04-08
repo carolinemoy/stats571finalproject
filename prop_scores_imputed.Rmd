@@ -292,3 +292,65 @@ plot.dataframe=data.frame(abs.stand.diff=c(abs.stand.diff.before,abs.stand.diff.
 ggplot(plot.dataframe,aes(x=abs.stand.diff,y=covariates))+geom_point(size=5,aes(shape=factor(type)))+scale_shape_manual(values=c(4,1))+geom_vline(xintercept=c(.1,.2),lty=2)
 ```
 
+# Negative Control: 
+
+Check if there's a difference between the matched pairs in terms of hearing condition
+
+
+## Wilcoxon signed rank test 
+
+
+```{r}
+
+wilcoxon <- function(full_df, matched_pairs, response) {
+  treated = full_df[matched_pairs[,"SubjectID (Treated)"], response]
+  treated_response = treated[[response]]
+  control = full_df[matched_pairs[,"SubjectID (Control)"], response]
+  control_response = control[[response]]
+
+  
+  print(wilcox.test(treated_response, control_response, 
+              paired=TRUE, conf.int=TRUE))
+  
+  
+}
+
+conds <- c("excellent", 
+  "good", 
+  "little_trouble", 
+  "moderate_trouble"#,
+  #"lot_trouble",  #removed due to errors (not enough observed 1s in one/both)
+  #"deaf"
+  )
+
+for (cond in conds) {
+  print(cond)
+  wilcoxon(final_imputed_df, df_matched_pairs_calip, cond)
+}
+
+```
+Excellent has a p-val below 0.05 ... (um)
+
+## T-test 
+
+```{r}
+
+ttest <- function(full_df, matched_pairs, response) {
+  treated = full_df[matched_pairs[,"SubjectID (Treated)"], response]
+  treated_response = treated[[response]]
+  control = full_df[matched_pairs[,"SubjectID (Control)"], response]
+  control_response = control[[response]]
+
+  print(t.test(treated_response, control_response, paired = TRUE, alternative = "two.sided"))
+
+
+}
+
+for (cond in conds) {
+  print(cond)
+  ttest(final_imputed_df, df_matched_pairs_calip, cond)
+}
+
+```
+Similar results, 'excellent' is showing a significant difference... 
+
