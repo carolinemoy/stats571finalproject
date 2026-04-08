@@ -16,7 +16,8 @@ clean_df <- read_csv("/Users/carolinemoy/stats571finalproj/Data/clean_df.csv")
 ```
 
 ```{r}
-complete_cases <- complete.cases(clean_df[, c(
+# df for selected propensity score variables 
+prop_score_variables_df <- clean_df[, c(
   "insecticide", "pulse_avg", "gender", "age_years",
   "race_ethnicity_detailed", "active_duty_military",
   "education_level", "marital_status", "household_size",
@@ -24,7 +25,9 @@ complete_cases <- complete.cases(clean_df[, c(
   "sedentary_minutes", "sleep_hours_weekday",
   "smoked_100_cigs", "height_inches", "weight_pounds",
   "mod_activity_per_week"
-)])
+)]
+
+complete_cases <- complete.cases(prop_score_variables_df)
 ```
 
 ```{r}
@@ -195,6 +198,90 @@ barchart_func(smoked_100_cigs)
 ```
 
 
+# Looking at pattern of missingness across rows 
+
+```{r}
+num_missing_vars <- rowSums(is.na(prop_score_variables_df))
+```
 
 
-Next look at if missing what variables are missing together (are there bunches that are always missing at the same time)???
+```{r}
+prop_score_variables_df <- prop_score_variables_df %>% 
+  mutate(num_missing_vars = num_missing_vars)
+```
+
+```{r}
+ggplot(aes(x = num_missing_vars), data = prop_score_variables_df) + 
+  geom_histogram()
+```
+
+```{r}
+table(prop_score_variables_df$num_missing_vars)
+```
+
+```{r}
+# we see that mod_activity_per_week has a LOT of missingness 
+prop_score_variables_df %>% 
+  filter(num_missing_vars == 1) %>% 
+  is.na() %>% 
+  colSums()
+```
+
+```{r}
+# we gain 139 treatment cases by just excluding mod_activity_per_week 
+prop_score_variables_df %>% 
+  filter(num_missing_vars == 1) %>% 
+  select(insecticide) %>% colSums(na.rm = T)
+```
+
+
+
+```{r}
+for(i in 1:12){
+  row_sums_missing_var <- prop_score_variables_df %>% 
+  filter(num_missing_vars == i) %>% 
+  is.na() %>% 
+  colSums()
+
+row_sums_missing_var <- data.frame(row_sums_missing_var)
+row_sums_missing_var$variable <- rownames(row_sums_missing_var)
+
+row_sums_missing_var <- row_sums_missing_var %>% 
+  filter(variable == "mod_activity_per_week")
+
+print(row_sums_missing_var)
+}
+```
+
+```{r}
+plot(prop_score_variables_df$mod_activity_per_week, prop_score_df$sedentary_minutes)
+
+cor(prop_score_variables_df$mod_activity_per_week, prop_score_df$sedentary_minutes, use = "complete.obs")
+```
+
+```{r}
+numeric_df <- prop_score_variables_df %>% select(where(is.numeric))
+cor_matrix <- cor(numeric_df, use = "complete.obs")
+print(cor_matrix)
+```
+
+```{r}
+clean_df %>% 
+  ggplot(aes(x = mod_activity_per_week, fill = as.factor(insecticide))) + 
+  geom_histogram() + 
+  labs(title = glue("Moderate Activity Minutes Insecticide vs. Not"), fill = "Insecticide")
+  theme_classic()
+```
+
+```{r}
+t.test(clean_df[clean_df$insecticide == 1, ]$mod_activity_per_week, clean_df[clean_df$insecticide == 0, ]$mod_activity_per_week)
+```
+
+```{r}
+mod_activity_model <- glm(insecticide ~ mod_activity_per_week, data = clean_df, family = binomial)
+```
+
+```{r}
+summary(mod_activity_model)
+```
+
