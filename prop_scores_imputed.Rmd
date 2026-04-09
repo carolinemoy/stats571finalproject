@@ -469,3 +469,28 @@ for (cond in conds) {
 ```
 
 Same results for complete_df, excellent is still significant. 
+
+# Actual Response Tests 
+
+```{r}
+responses <- c("systolic_avg",
+               "diastolic_avg",
+               "raw_difference",
+               "mean_bp"
+)
+
+#imputed
+for (response in responses) {
+  print(response)
+  wilcoxon(final_imputed_df, df_matched_pairs_calip, response)
+  ttest(final_imputed_df, df_matched_pairs_calip, response)
+}
+
+#complete
+for (response in responses) {
+  print(response)
+  wilcoxon(complete_cases_df, df_matched_pairs_calip_complete, response)
+  ttest(complete_cases_df, df_matched_pairs_calip_complete, response)
+
+}
+```
