@@ -300,7 +300,6 @@ Check if there's a difference between the matched pairs in terms of hearing cond
 
 
 ```{r}
-
 wilcoxon <- function(full_df, matched_pairs, response) {
   treated = full_df[matched_pairs[,"SubjectID (Treated)"], response]
   treated_response = treated[[response]]
@@ -494,3 +493,61 @@ for (response in responses) {
 
 }
 ```
+
+# Senstivity Analysis
+```{r}
+# is it correct to put diff >= for s1?? 
+
+sens.analysis.signedrank=function(diff,Gamma){
+  rk=rank(abs(diff));
+  s1=1*(diff>=0);
+  s2=1*(diff<0);
+  W=sum(s1*rk);
+  Eplus=sum((s1+s2)*rk*Gamma)/(1+Gamma);
+  Eminus=sum((s1+s2)*rk)/(1+Gamma);
+  V=sum((s1+s2)*rk*rk*Gamma)/((1+Gamma)^2);
+  Dplus=(W-Eplus)/sqrt(V);
+  Dminus=(W-Eminus)/sqrt(V);
+  list(lowerbound=1-pnorm(Dminus),upperbound=1-pnorm(Dplus));
+}
+```
+
+
+```{r}
+treated = complete_cases_df[df_matched_pairs_calip_complete[,"SubjectID (Treated)"], "excellent"]
+treated_response = treated[["excellent"]]
+control = complete_cases_df[df_matched_pairs_calip_complete[,"SubjectID (Control)"], "excellent"]
+control_response = control[["excellent"]]
+
+difference = treated_response - control_response
+```
+
+```{r}
+Gamvec = seq(1, 2, 0.1)
+tt = matrix(0, length(Gamvec), 3)
+tt[,1] = Gamvec
+for(i in 1:length(Gamvec))
+{
+  a = sens.analysis.signedrank(difference, Gamvec[i])
+  tt[i,-1] = c(a$lowerbound, a$upperbound)
+}
+
+colnames(tt) = c("Gamma", "Lower Bound", "Upper Bound")
+knitr::kable(round(tt,3), caption = "Gamma and Bounds")
+```
+
+```{r}
+wilcoxon(complete_cases_df, df_matched_pairs_calip_complete, cond)
+
+wilcoxon <- function(full_df, matched_pairs, response) {
+  treated = complete_cases_df[df_matched_pairs_calip_complete[,"SubjectID (Treated)"], "excellent"]
+  treated_response = treated[["excellent"]]
+  control = complete_cases_df[df_matched_pairs_calip_complete[,"SubjectID (Control)"], "excellent"]
+  control_response = control[["excellent"]]
+
+  
+  print(wilcox.test(treated_response, control_response, 
+              paired=TRUE, conf.int=TRUE))
+}
+```
+
