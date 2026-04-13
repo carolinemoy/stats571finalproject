@@ -51,6 +51,11 @@ final_imputed_df <- clean_df %>%
 ```
 
 ```{r}
+na_counts <- sapply(final_imputed_df[, variables_of_interest], function(x) sum(is.na(x)))
+na_counts #na_counts among variables of interest  
+```
+
+```{r}
 covariates_to_impute <- c(
     "active_duty_military",
     "education_level",

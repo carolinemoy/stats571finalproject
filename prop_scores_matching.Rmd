@@ -15,6 +15,9 @@ library(ggplot2)
 # Reading in Data Frame 
 ```{r}
 clean_df <- read_csv("Data/clean_df.csv")
+clean_df <- clean_df %>% 
+  drop_na(insecticide, mean_bp) 
+clean_df
 ```
 
 # EDA
@@ -93,6 +96,10 @@ na_prevalance <- clean_df %>%
   colMeans() 
 
 na_prevalance > 0.5
+```
+```{r}
+na_counts <- sapply(clean_df, function(x) sum(is.na(x)))
+na_counts 
 ```
 
 # Making SubjectID Numbers
