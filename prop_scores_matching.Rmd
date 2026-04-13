@@ -83,12 +83,30 @@ clean_df %>%
 ```
 
 ```{r}
-plot(clean_df$sleep_hours_weekday, clean_df$sleep_hours_weekend)
+plot(
+  clean_df$sleep_hours_weekday,
+  clean_df$sleep_hours_weekend,
+  main = "Sleep Hours: Weekday vs Weekend",
+  xlab = "Sleep Hours Weekday",
+  ylab = "Sleep Hours Weekend",
+  pch = 19,
+  col = rgb(0.2, 0.4, 0.6, 0.6)
+)
 ```
 
 ```{r}
-plot(clean_df$mod_activity_per_week, clean_df$sedentary_minutes)
+plot(
+  clean_df$mod_activity_per_week,
+  clean_df$sedentary_minutes,
+  main = "Moderate Activity vs Sedentary Time",
+  xlab = "Moderate Activity (per week)",
+  ylab = "Sedentary Minutes",
+  pch = 19,
+  col = rgb(0.2, 0.4, 0.6, 0.6)
+)
 ```
+
+
 
 ```{r}
 na_prevalance <- clean_df %>% 
@@ -97,10 +115,48 @@ na_prevalance <- clean_df %>%
 
 na_prevalance > 0.5
 ```
+
+
 ```{r}
 na_counts <- sapply(clean_df, function(x) sum(is.na(x)))
 na_counts 
+
 ```
+```{r}
+table(clean_df$insecticide)
+```
+```{r}
+
+ggplot(clean_df, aes(x = race_ethnicity_detailed)) +
+  geom_bar(fill = "#336699") +
+  facet_wrap(~ insecticide) +
+  labs(
+    title = "Race Distribution by Treatment Group",
+    x = "Race",
+    y = "Count"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+
+```{r}
+
+ggplot(clean_df, aes(x = gender)) +
+  geom_bar(fill = "#336699") +
+  facet_wrap(~ insecticide) +
+  labs(
+    title = "Race Distribution by Treatment Group",
+    x = "Race",
+    y = "Count"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+
 
 # Making SubjectID Numbers
 ```{r}
