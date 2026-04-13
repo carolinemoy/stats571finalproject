@@ -6,6 +6,7 @@ library(tidyverse)
 library(dplyr)
 library(optmatch)
 library(ggplot2)
+library(forcats)
 
 clean_df <- read_csv("Data/clean_df.csv")
 
@@ -150,10 +151,15 @@ control_prop_scores <- prop_scores[final_imputed_df$insecticide == FALSE]
 
 
 ```{r}
-hist(treated_prop_scores)
+par(mfrow = c(1, 2))
 
-hist(control_prop_scores)
+hist(treated_prop_scores, xlab = "Propensity Scores", main = "Propensity Scores for Treated")
+
+hist(control_prop_scores, xlab = "Propensity Scores", main = "Propensity Scores for Control")
 ```
+
+
+
 ```{r}
 # report the fraction of treated and control individuals that
 # have an estimated propensity score below 0.0001
@@ -291,7 +297,48 @@ abs.stand.diff.before=abs(stand.diff.before[-1])
 abs.stand.diff.after=abs(stand.diff.after[-1])
 covariates=names(stand.diff.before[-1])
 plot.dataframe=data.frame(abs.stand.diff=c(abs.stand.diff.before,abs.stand.diff.after),covariates=rep(covariates,2),type=c(rep("Before",length(covariates)),rep("After",length(covariates))))
-ggplot(plot.dataframe,aes(x=abs.stand.diff,y=covariates))+geom_point(size=5,aes(shape=factor(type)))+scale_shape_manual(values=c(4,1))+geom_vline(xintercept=c(.1,.2),lty=2)
+
+
+
+
+plot.dataframe$covariates <- fct_recode(plot.dataframe$covariates,
+  "Weight (lbs)" = "weight_pounds",
+  "Education (Some HS)" = "Some_High_School",
+  "Education (Some College)" = "Some_College", 
+  "Education (<9th)" = "Less_9th_grade", 
+  "Education (HS)" = "High_School_Degree",
+  "Education (College or More)" = "College_Grad_or_More",
+  "Smoked 100 cigs/daily" = "smoked_100_cigs", 
+  "Sleep Time (hrs)" = "sleep_hours_weekday", 
+  "Sedentary Time (mins)" = "sedentary_minutes", 
+  "Average Pulse" = "pulse_avg", 
+  "Race (Other)" = "Other", 
+  "Race (White)" = "White", 
+  "Race (Mexican)" = "Mexican", 
+  "Race (Black)" = "Black", 
+  "Race (Asian)" = "Asian", 
+  "Race (Hispanic)" = "Hispanic",
+  "Relationship (Married)" = "Married", 
+  "Relationship (Widowed)" = "Widowed", 
+  "Relationship (Divorced)" = "Divorced", 
+  "Moderate Physical Activity (/week)" = "mod_activity_per_week", 
+  "Income Poverty Ratio" = "income_poverty_ratio", 
+  "Household Size" = "household_size", 
+  "Height (in)" = "height_inches", 
+  "Gender" = "gender", 
+  "Diabetes Diagnosis" = "diabetes_diagnosed", 
+  "Age (yrs)" = "age_years", 
+  "Active Duty Military" = "active_duty_military"
+)
+
+ggplot(plot.dataframe,aes(x=abs.stand.diff,y=covariates))+
+  geom_point(size=5,aes(shape=factor(type)))+
+  scale_shape_manual(values=c(4,1))+geom_vline(xintercept=c(.1,.2),lty=2) + 
+  labs(shape = "Before or After Matching", 
+       title = "Standardized Differences for Imputed Data", 
+       y = "Covariates", 
+       x = "Absolute Standardized Differences") + 
+  theme_bw()
 ```
 
 # Negative Control: 
