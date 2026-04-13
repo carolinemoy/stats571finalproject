@@ -536,18 +536,4 @@ colnames(tt) = c("Gamma", "Lower Bound", "Upper Bound")
 knitr::kable(round(tt,3), caption = "Gamma and Bounds")
 ```
 
-```{r}
-wilcoxon(complete_cases_df, df_matched_pairs_calip_complete, cond)
-
-wilcoxon <- function(full_df, matched_pairs, response) {
-  treated = complete_cases_df[df_matched_pairs_calip_complete[,"SubjectID (Treated)"], "excellent"]
-  treated_response = treated[["excellent"]]
-  control = complete_cases_df[df_matched_pairs_calip_complete[,"SubjectID (Control)"], "excellent"]
-  control_response = control[["excellent"]]
-
-  
-  print(wilcox.test(treated_response, control_response, 
-              paired=TRUE, conf.int=TRUE))
-}
-```
 
