@@ -151,7 +151,38 @@ ggplot(clean_df, aes(x = gender)) +
     axis.text.x = element_text(angle = 45, hjust = 1)
   )
 ```
+```{r}
+# Create a summary data frame with means per group
+means_df <- clean_df %>%
+  group_by(insecticide) %>%
+  summarise(mean_val = mean(systolic_avg, na.rm = TRUE))
 
+ggplot(clean_df, aes(x = systolic_avg)) +
+  geom_histogram(fill = "#336699") +
+  geom_vline(
+    data = means_df,
+    aes(xintercept = mean_val),
+    color = "red",
+    linetype = "dashed",
+    size = 1
+  ) +
+  facet_wrap(~ insecticide) +
+  labs(
+    title = "Blood Pressure by Treatment Group",
+    x = "Blood Pressure (Systolic Average)",
+    y = "Count"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+geom_text(
+  data = means_df,
+  aes(x = mean_val + 15, y = Inf, label = round(mean_val, 1)),
+  vjust = 2,
+  color = "black"
+)
+```
 
 # Making SubjectID Numbers
 ```{r}
