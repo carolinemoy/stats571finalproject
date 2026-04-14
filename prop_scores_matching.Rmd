@@ -15,9 +15,6 @@ library(ggplot2)
 # Reading in Data Frame 
 ```{r}
 clean_df <- read_csv("Data/clean_df.csv")
-clean_df <- clean_df %>% 
-  drop_na(insecticide, mean_bp) 
-clean_df
 ```
 
 # EDA
@@ -120,7 +117,6 @@ na_prevalance > 0.5
 ```{r}
 na_counts <- sapply(clean_df, function(x) sum(is.na(x)))
 na_counts 
-
 ```
 ```{r}
 table(clean_df$insecticide)
@@ -142,12 +138,11 @@ ggplot(clean_df, aes(x = race_ethnicity_detailed)) +
 ```
 
 ```{r}
-
 ggplot(clean_df, aes(x = gender)) +
   geom_bar(fill = "#336699") +
   facet_wrap(~ insecticide) +
   labs(
-    title = "Race Distribution by Treatment Group",
+    title = "Gender Distribution by Treatment Group",
     x = "Race",
     y = "Count"
   ) +

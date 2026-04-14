@@ -40,22 +40,34 @@ variables_of_interest <- c(covariates, "mean_bp", "insecticide", "hearing_cond")
 na_counts <- sapply(clean_df[, variables_of_interest], function(x) sum(is.na(x)))
 na_counts #na_counts among variables of interest  
 ```
-
 ```{r}
-#NOTE: THERE ARE 63 MISSING INSECTICIDE AND 283 MISSING BP -- 
-#removing these from df because we won't be able to use them anyway 
-#also means pulse_avg won't have any missing anymore 
+clean_df <- clean_df %>% 
+  mutate(gender = ifelse(gender == "Female", 1, 0), # Female is 1, Male 0
+         Mexican = ifelse(race_ethnicity_detailed == "Mexican American", 1, 0), 
+         Asian = ifelse(race_ethnicity_detailed == "Non-Hispanic Asian", 1, 0),
+         Black = ifelse(race_ethnicity_detailed == "Non-Hispanic Black", 1, 0), 
+         White = ifelse(race_ethnicity_detailed == "Non-Hispanic White", 1, 0), 
+         Hispanic = ifelse(race_ethnicity_detailed == "Other Hispanic", 1, 0), 
+         Other = ifelse(race_ethnicity_detailed == "Other Race", 1, 0)) %>% 
+  
+  mutate(deaf = ifelse(hearing_cond == "Deaf", 1, 0), 
+           excellent = ifelse(hearing_cond == "Excellent", 1, 0), 
+           good = ifelse(hearing_cond == "Good", 1, 0), 
+           little_trouble = ifelse(hearing_cond == "A Little Trouble", 1, 0), 
+           lot_trouble = ifelse(hearing_cond == "Lot of Trouble", 1, 0), 
+           moderate_trouble = ifelse(hearing_cond == "Moderate Trouble", 1, 0), 
+           hearing_cond = factor(hearing_cond, levels = c("Excellent", 
+                                                          "Good", 
+                                                          "A Little Trouble", 
+                                                          "Moderate Trouble", 
+                                                          "Lot of Trouble", 
+                                                          "Deaf")))
 
-final_imputed_df <- clean_df %>% 
-  drop_na(insecticide, mean_bp)
 ```
 
 ```{r}
-na_counts <- sapply(final_imputed_df[, variables_of_interest], function(x) sum(is.na(x)))
-na_counts #na_counts among variables of interest  
-```
+final_imputed_df <- clean_df
 
-```{r}
 covariates_to_impute <- c(
     "active_duty_military",
     "education_level",
@@ -108,11 +120,14 @@ final_imputed_df = final_imputed_df %>%
          High_School_Degree = ifelse(education_level == "High school/GED", 1, 0), 
          Some_College = ifelse(education_level == "Some college/AA", 1, 0), 
          College_Grad_or_More = ifelse(education_level == "College graduate or above", 1, 0), 
-         Divorced = ifelse(marital_status == "Divorced", 1, 0), 
+         Prev_Married = ifelse(marital_status == "Previously Married", 1, 0), 
          Married = ifelse(marital_status == "Married", 1, 0), 
-         Widowed = ifelse(marital_status == "Widowed", 1, 0)) 
+         Never_Married = ifelse(marital_status == "Never Married", 1, 0)) 
 ```
 
+```{r}
+final_imputed_df
+```
 
 ```{r}
 prop_score_mod_imputed <- glm(insecticide ~ pulse_avg +
@@ -123,7 +138,7 @@ prop_score_mod_imputed <- glm(insecticide ~ pulse_avg +
       active_duty_military + active_duty_military_imputed +
       Less_9th_grade + Some_High_School + High_School_Degree + 
         Some_College + College_Grad_or_More + education_level_imputed +
-      Divorced + Married + Widowed + marital_status_imputed +
+      Prev_Married + Married + Never_Married + marital_status_imputed +
       household_size + 
       income_poverty_ratio + income_poverty_ratio_imputed +
       diabetes_diagnosed + diabetes_diagnosed_imputed +
@@ -135,7 +150,6 @@ prop_score_mod_imputed <- glm(insecticide ~ pulse_avg +
       mod_activity_per_week + mod_activity_per_week_imputed,
       data = final_imputed_df, family = binomial,
       x = TRUE, y = TRUE)
-#NOTE: remove one from each category? 
 ```
 
 ```{r}
@@ -258,7 +272,7 @@ standardized_differences_df = final_imputed_df[, c(
   "Mexican", "Asian", "Black", "White", "Hispanic", "Other", 
   "active_duty_military", 
   "Less_9th_grade", "Some_High_School", "High_School_Degree", "Some_College", "College_Grad_or_More",
-  "Divorced", "Married", "Widowed", 
+  "Prev_Married", "Married", "Never_Married", 
   "household_size",
   "income_poverty_ratio", "diabetes_diagnosed",
   "sedentary_minutes", "sleep_hours_weekday",
@@ -323,9 +337,9 @@ plot.dataframe$covariates <- fct_recode(plot.dataframe$covariates,
   "Race (Black)" = "Black", 
   "Race (Asian)" = "Asian", 
   "Race (Hispanic)" = "Hispanic",
-  "Relationship (Married)" = "Married", 
-  "Relationship (Widowed)" = "Widowed", 
-  "Relationship (Divorced)" = "Divorced", 
+  "Marital Status (Previously Married)" = "Prev_Married", 
+  "Marital Status (Married)" = "Married", 
+  "Marital Status (Never Married)" = "Never_Married", 
   "Moderate Physical Activity (/week)" = "mod_activity_per_week", 
   "Income Poverty Ratio" = "income_poverty_ratio", 
   "Household Size" = "household_size", 
@@ -404,7 +418,7 @@ Similar results, 'excellent' is showing a significant difference...
 
 
 
-# Negative Control on Complete DF: 
+# Negative Control on Complete DF (not using): 
 
 ```{r}
 clean_df <- read_csv("Data/clean_df.csv")
@@ -538,12 +552,12 @@ for (response in responses) {
 }
 
 #complete
-for (response in responses) {
-  print(response)
-  wilcoxon(complete_cases_df, df_matched_pairs_calip_complete, response)
-  ttest(complete_cases_df, df_matched_pairs_calip_complete, response)
+#for (response in responses) {
+#  print(response)
+#  wilcoxon(complete_cases_df, df_matched_pairs_calip_complete, response)
+#  ttest(complete_cases_df, df_matched_pairs_calip_complete, response)
 
-}
+#}
 ```
 
 # Senstivity Analysis

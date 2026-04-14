@@ -11,7 +11,7 @@ library(dplyr)
 ```
 
 ```{r}
-clean_df <- read_csv("/Users/carolinemoy/stats571finalproj/Data/clean_df.csv")
+clean_df <- read_csv("Data/clean_df.csv")
 ```
 ```{r}
 freq_table <- table(clean_df$hearing_cond, clean_df$insecticide)
@@ -19,22 +19,6 @@ prop.table(freq_table, margin = 2)
 ```
 ```{r}
 table(clean_df$hearing_cond)
-```
-
-```{r}
-clean_df <- clean_df %>% 
-  mutate(deaf = ifelse(hearing_cond == "Deaf", 1, 0), 
-         excellent = ifelse(hearing_cond == "Excellent", 1, 0), 
-         good = ifelse(hearing_cond == "Good", 1, 0), 
-         little_trouble = ifelse(hearing_cond == "A Little Trouble", 1, 0), 
-         lot_trouble = ifelse(hearing_cond == "Lot of Trouble", 1, 0), 
-         moderate_trouble = ifelse(hearing_cond == "Moderate Trouble", 1, 0), 
-         hearing_cond = factor(hearing_cond, levels = c("Excellent", 
-                                                        "Good", 
-                                                        "A Little Trouble", 
-                                                        "Moderate Trouble", 
-                                                        "Lot of Trouble", 
-                                                        "Deaf")))
 ```
 
 ```{r}
