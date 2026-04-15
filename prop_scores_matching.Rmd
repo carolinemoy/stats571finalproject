@@ -183,7 +183,49 @@ geom_text(
   color = "black"
 )
 ```
+```{r}
+ggplot(clean_df, aes(x = hearing_cond)) +
+  geom_bar(aes(y = after_stat(prop), group = insecticide), fill = "#336699") +
+  geom_text(
+    aes(
+      y = after_stat(prop),
+      label = scales::percent(after_stat(prop), accuracy = 0.1),
+      group = insecticide
+    ),
+    stat = "count",
+    vjust = -0.3,
+    size = 3
+  ) +
+  facet_wrap(~ insecticide) +
+  labs(
+    title = "Hearing Condition Distribution by Treatment Group",
+    x = "Hearing Condition",
+    y = "Proportion"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
 
+```{r}
+library(dplyr)
+library(tidyr)
+
+table_df <- clean_df %>%
+  group_by(insecticide, hearing_cond) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(insecticide) %>%
+  mutate(prop = n / sum(n)) %>%
+  mutate(cell = paste0(n, " (", scales::percent(prop, accuracy = 0.1), ")")) %>%
+  select(-n, -prop) %>%
+  pivot_wider(
+    names_from = insecticide,
+    values_from = cell
+  )
+
+table_df
+```
 # Making SubjectID Numbers
 ```{r}
 clean_df = clean_df %>% 

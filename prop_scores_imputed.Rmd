@@ -360,10 +360,35 @@ ggplot(plot.dataframe,aes(x=abs.stand.diff,y=covariates))+
   theme_bw()
 ```
 
-# Negative Control: 
+# Hearing Outcome: 
 
 Check if there's a difference between the matched pairs in terms of hearing condition
 
+```{r}
+conds <- c("excellent", 
+  "good", 
+  "little_trouble", 
+  "moderate_trouble",
+  "lot_trouble", 
+  "deaf"
+)
+
+get_info <- function(full_df, matched_pairs, response) {
+  treated = full_df[matched_pairs[,"SubjectID (Treated)"], response]
+  treated_response = treated[[response]]
+  control = full_df[matched_pairs[,"SubjectID (Control)"], response]
+  control_response = control[[response]]
+  
+  print(response)
+  print(paste('control: ', sum(control_response)))
+  print(paste('treated: ', sum(treated_response)))
+
+}
+
+# for (cond in conds) {
+#   get_info(final_imputed_df, df_matched_pairs_calip, cond)
+# }
+```
 
 ```{r}
 wilcoxon <- function(full_df, matched_pairs, response) {
@@ -385,179 +410,57 @@ ttest <- function(full_df, matched_pairs, response) {
   control_response = control[[response]]
 
   print(t.test(treated_response, control_response, paired = TRUE, alternative = "two.sided"))
-
-
 }
 
-conds <- c("excellent", 
-  "good", 
-  "little_trouble", 
-  "moderate_trouble"#,
-  #"lot_trouble",  #removed due to errors (not enough observed 1s in one/both)
-  #"deaf"
+mcnemar <- function(full_df, matched_pairs, response) {
+  treated = full_df[matched_pairs[,"SubjectID (Treated)"], response]
+  t = treated[[response]]
+  control = full_df[matched_pairs[,"SubjectID (Control)"], response]
+  c = control[[response]]
+  
+  df <- data.frame(c, t) #find when 0 -> 1, etc 
+  
+  #print(df)
+  
+  table <-
+  matrix(c(
+    sum((c == 1) & (t == 1)),
+    sum((c == 1) & (t == 0)),
+    sum((c == 0) & (t == 1)),
+    sum((c == 0) & (t == 0))
+  ),
+  nrow = 2
 )
+  
+  print(table)
+  print(mcnemar.test(table))
+}
 ```
 
 
 ```{r}
 for (cond in conds) {
   print(cond)
-  wilcoxon(final_imputed_df, df_matched_pairs_calip, cond)
+  mcnemar(final_imputed_df, df_matched_pairs_calip, cond)
+  #wilcoxon(final_imputed_df, df_matched_pairs_calip, cond)
+  #ttest(final_imputed_df, df_matched_pairs_calip, cond)
+  
+
 }
 ```
-Excellent has a p-val below 0.05 ... (um)
+Excellent has a p-val below 0.05 
+
+Wilcox has an error with deaf and lot of trouble, too few observations. 
+
+
+# Blood Pressure Outcome Tests 
 
 ```{r}
 for (cond in conds) {
-  print(cond)
-  ttest(final_imputed_df, df_matched_pairs_calip, cond)
-}
-
-```
-Similar results, 'excellent' is showing a significant difference... 
-
-
-
-# Negative Control on Complete DF (not using): 
-
-```{r}
-clean_df <- read_csv("Data/clean_df.csv")
-clean_df = clean_df %>% 
-  mutate(subject_ID = `...1`)
-complete_cases <- complete.cases(clean_df[, c(
-  "insecticide", "pulse_avg", "gender", "age_years",
-  "race_ethnicity_detailed", "active_duty_military",
-  "education_level", "marital_status", "household_size",
-  "income_poverty_ratio", "diabetes_diagnosed",
-  "sedentary_minutes", "sleep_hours_weekday",
-  "smoked_100_cigs", "height_inches", "weight_pounds",
-  "mod_activity_per_week"
-)])
-
-complete_cases_df <- clean_df[complete_cases, ]
-```
-
-```{r}
-complete_cases_df = complete_cases_df %>% 
-  mutate(gender = ifelse(gender == "Female", 1, 0), # Female is 1, Male 0
-         Mexican = ifelse(race_ethnicity_detailed == "Mexican American", 1, 0), 
-         Asian = ifelse(race_ethnicity_detailed == "Non-Hispanic Asian", 1, 0),
-         Black = ifelse(race_ethnicity_detailed == "Non-Hispanic Black", 1, 0), 
-         White = ifelse(race_ethnicity_detailed == "Non-Hispanic White", 1, 0), 
-         Hispanic = ifelse(race_ethnicity_detailed == "Other Hispanic", 1, 0), 
-         Other = ifelse(race_ethnicity_detailed == "Other Race", 1, 0), 
-         Less_9th_grade = ifelse(education_level == "<9th grade", 1, 0), 
-         Some_High_School = ifelse(education_level == "9-11th grade", 1, 0), 
-         High_School_Degree = ifelse(education_level == "High school/GED", 1, 0), 
-         Some_College = ifelse(education_level == "Some college/AA", 1, 0), 
-         College_Grad_or_More = ifelse(education_level == "College graduate or above", 1, 0), 
-         Divorced = ifelse(marital_status == "Divorced", 1, 0), 
-         Married = ifelse(marital_status == "Married", 1, 0), 
-         Widowed = ifelse(marital_status == "Widowed", 1, 0)) 
-
-```
-
-```{r}
-prop_score_mod <- glm(insecticide ~ pulse_avg + 
-      gender + 
-      age_years + 
-      Mexican + 
-      Asian + 
-      Black + 
-      White + 
-      Hispanic + 
-      Other + 
-      active_duty_military + 
-      Less_9th_grade + 
-      Some_High_School + High_School_Degree + 
-      Some_College + 
-      College_Grad_or_More + 
-      Divorced + 
-      Married + 
-      Widowed +   
-      household_size + 
-      income_poverty_ratio + 
-      diabetes_diagnosed + 
-      sedentary_minutes + 
-      sleep_hours_weekday + 
-      smoked_100_cigs + 
-      height_inches + 
-      weight_pounds + 
-      mod_activity_per_week, 
-      data = complete_cases_df, family = binomial,
-      x = TRUE, y = TRUE)
-
-Z = prop_score_mod$y
-logitps = predict(prop_score_mod)
-length(logitps)
-```
-
-```{r}
-distmat.logitps = outer(logitps[Z == 1],logitps[Z==0],"-")
-distmat.logitps = abs(distmat.logitps)
-
-rownames(distmat.logitps)= rownames(complete_cases_df)[Z == 1]
-colnames(distmat.logitps)= rownames(complete_cases_df)[Z == 0]
-
-distmat_caliper_complete = addcaliper(distmat.logitps,Z,logitps,calipersd = 0.5)
-```
-
-```{r}
-noControls = 1
-matchvec_caliper_complete=pairmatch(distmat_caliper_complete,controls=noControls,
-                                    data=complete_cases_df)
-```
-
-```{r}
-#matchvec_caliper_encoded
-```
-
-```{r}
-df_matched_pairs_calip_complete<- generating_matched_pair_mat(matchvec_caliper_complete, complete_cases_df)
-```
-
-```{r}
-head(df_matched_pairs_calip_complete)
-```
-
-
-```{r}
-for (cond in conds) {
-  print(cond)
-  wilcoxon(complete_cases_df, df_matched_pairs_calip_complete, cond)
-}
-
-for (cond in conds) {
-  print(cond)
-  ttest(complete_cases_df, df_matched_pairs_calip_complete, cond)
-}
-```
-
-Same results for complete_df, excellent is still significant. 
-
-# Actual Response Tests 
-
-```{r}
-responses <- c("systolic_avg",
-               "diastolic_avg",
-               "raw_difference",
-               "mean_bp"
-)
-
-#imputed
-for (response in responses) {
   print(response)
   wilcoxon(final_imputed_df, df_matched_pairs_calip, response)
   ttest(final_imputed_df, df_matched_pairs_calip, response)
 }
-
-#complete
-#for (response in responses) {
-#  print(response)
-#  wilcoxon(complete_cases_df, df_matched_pairs_calip_complete, response)
-#  ttest(complete_cases_df, df_matched_pairs_calip_complete, response)
-
-#}
 ```
 
 # Senstivity Analysis
