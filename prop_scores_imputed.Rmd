@@ -432,7 +432,7 @@ mcnemar <- function(full_df, matched_pairs, response) {
   nrow = 2
 )
   
-  print(table)
+  #print(table)
   print(mcnemar.test(table))
 }
 ```
@@ -456,10 +456,16 @@ Wilcox has an error with deaf and lot of trouble, too few observations.
 # Blood Pressure Outcome Tests 
 
 ```{r}
-for (cond in conds) {
-  print(response)
-  wilcoxon(final_imputed_df, df_matched_pairs_calip, response)
-  ttest(final_imputed_df, df_matched_pairs_calip, response)
+bp_tests <- c("mean_bp", 
+  "systolic_avg", 
+  "diastolic_avg", 
+  "raw_difference"
+)
+
+for (bp_test in bp_tests) {
+  print(bp_test)
+  wilcoxon(final_imputed_df, df_matched_pairs_calip, bp_test)
+  ttest(final_imputed_df, df_matched_pairs_calip, bp_test)
 }
 ```
 
