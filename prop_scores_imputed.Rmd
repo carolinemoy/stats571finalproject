@@ -167,6 +167,11 @@ control_prop_scores <- prop_scores[final_imputed_df$insecticide == FALSE]
 
 ```
 
+```{r}
+
+```
+
+
 
 
 ```{r}
@@ -187,6 +192,12 @@ cat("Treated Proportion with Propensity Scores < 0.0001", mean(treated_prop_scor
 cat("Control Proportion with Propensity Scores < 0.0001",  mean(control_prop_scores < 0.0001))
 
 #nothing crazy
+```
+
+```{r}
+range(treated_prop_scores)
+
+range(control_prop_scores)
 ```
 
 # Distance Matrix + Caliper 
@@ -358,6 +369,19 @@ ggplot(plot.dataframe,aes(x=abs.stand.diff,y=covariates))+
        y = "Covariates", 
        x = "Absolute Standardized Differences") + 
   theme_bw()
+```
+
+# Paired t-test balance test 
+```{r}
+covnames=names(stand.diff.before)[-1]
+t.test.pval.vec=rep(0,length(covnames))
+for(i in 2:ncol(treatedmat)){
+  t.test.pval.vec[i-1]=t.test(treatedmat[,i]-controlmat.after[,i])$p.value
+}
+knitr::kable(cbind(covnames,round(t.test.pval.vec,3)), caption = "t-test after matching (paired)")
+
+length(t.test.pval.vec)
+sum(t.test.pval.vec < 0.05)
 ```
 
 # Hearing Outcome: 
